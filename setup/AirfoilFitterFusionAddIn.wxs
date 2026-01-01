@@ -1,0 +1,46 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+    <Package Name="Airfoil Fitter Add-in for Fusion 360" 
+             Manufacturer="Michael Reeg" 
+             Version="1.0.0.0" 
+             UpgradeCode="F0E1D2C3-B4A5-9687-7869-5A4B3C2D1E0F"
+             Scope="perUser">
+        
+        <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+        <MediaTemplate EmbedCab="yes" />
+
+        <!-- Simple UI -->
+        <ui:WixUI Id="WixUI_Minimal" />
+        <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+        
+        <!-- Application Icon -->
+        <Icon Id="icon.ico" SourceFile="../resources/FusionFitterCommand/favicon.ico"/>
+        <Property Id="ARPPRODUCTICON" Value="icon.ico" />
+
+        <!-- Directory Structure -->
+        <StandardDirectory Id="AppDataFolder">
+            <Directory Id="AutodeskDir" Name="Autodesk">
+                <Directory Id="ApplicationPluginsDir" Name="ApplicationPlugins">
+                    <Directory Id="INSTALLFOLDER" Name="AirfoilFitterFusionAddIn.bundle">
+                        <Directory Id="ContentsFolder" Name="Contents" />
+                    </Directory>
+                </Directory>
+            </Directory>
+        </StandardDirectory>
+
+        <!-- Components -->
+        <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+            <Component Id="PackageContentsXml" Guid="B1C2D3E4-F5A6-7890-ABCD-EF1234567891">
+                <File Id="PackageContents.xml" Source="PackageContents.xml" KeyPath="yes" />
+                <RegistryValue Root="HKCU" Key="Software\MichaelReeg\AirfoilFitterFusionAddIn" Name="installed" Type="integer" Value="1" Action="write" />
+                <RemoveFolder Id="INSTALLFOLDER" On="uninstall" />
+            </Component>
+        </ComponentGroup>
+
+        <!-- The actual add-in files are harvested into this group -->
+        <Feature Id="MainFeature" Title="Airfoil Fitter FusionAdd-in" Level="1">
+            <ComponentGroupRef Id="ProductComponents" />
+            <ComponentGroupRef Id="HarvestedAddInFiles" />
+        </Feature>
+    </Package>
+</Wix>

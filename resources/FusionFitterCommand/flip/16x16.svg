@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
+
+<svg
+   width="800"
+   height="800"
+   viewBox="0 0 24 24"
+   fill="none"
+   version="1.1"
+   id="svg1"
+   sodipodi:docname="16x16.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.48125"
+     inkscape:cx="400"
+     inkscape:cy="400"
+     inkscape:window-width="5120"
+     inkscape:window-height="1387"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg1" />
+  <defs
+     id="defs1" />
+  <path
+     fill-rule="evenodd"
+     clip-rule="evenodd"
+     d="m 15.079,3.46209 c 0.2972,-0.28854 0.772,-0.28155 1.0606,0.01562 L 19.538,6.9777 c 0.2825,0.29101 0.2825,0.75392 0,1.04493 l -3.3984,3.49997 c -0.2886,0.2972 -0.7634,0.3042 -1.0606,0.0156 -0.2971,-0.2885 -0.3041,-0.7633 -0.0156,-1.0605 L 17.2263,8.25015 H 4.99989 c -0.41422,0 -0.75,-0.33578 -0.75,-0.75 0,-0.41421 0.33578,-0.75 0.75,-0.75 H 17.2263 L 15.0634,4.52264 C 14.7749,4.22546 14.7819,3.75064 15.079,3.46209 Z M 8.92071,12.4618 c 0.29717,0.2886 0.30417,0.7634 0.01562,1.0606 L 6.77327,15.7501 H 18.9999 c 0.4142,0 0.75,0.3358 0.75,0.75 0,0.4142 -0.3358,0.75 -0.75,0.75 H 6.77366 l 2.16267,2.2273 c 0.28855,0.2972 0.28155,0.772 -0.01562,1.0606 -0.29718,0.2885 -0.772,0.2815 -1.06055,-0.0156 l -3.39839,-3.5 c -0.28255,-0.291 -0.28255,-0.7539 0,-1.045 l 3.39839,-3.4999 c 0.28855,-0.2972 0.76337,-0.3042 1.06055,-0.0157 z"
+     fill="#000000"
+     id="path1"
+     style="fill:#0cb2da;fill-opacity:1" />
+</svg>

@@ -1,0 +1,66 @@
+name: Build WiX Installer
+
+on:
+  push:
+    branches: [main, master]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      
+      - name: Install WiX Toolset
+        run: dotnet tool install --global wix
+      
+      - name: Add WiX Extensions
+        run: |
+          wix extension add -g WixToolset.UI.wixext
+          wix extension add -g WixToolset.Util.wixext
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Generate WiX file fragment
+        working-directory: setup
+        run: python generate_wxs_fragment.py
+      
+      - name: Build MSI Installer
+        working-directory: setup
+        run: |
+          wix build AirfoilFitterFusionAddIn.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusionAddInSetup.msi
+      
+      - name: Upload MSI Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AirfoilFitterFusionAddIn-Installer
+          path: setup/AirfoilFitterFusionAddInSetup.msi
+          if-no-files-found: error
+      
+      # Upload to GitHub Releases when a tag is pushed
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: setup/AirfoilFitterFusionAddInSetup.msi
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
