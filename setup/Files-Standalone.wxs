@@ -1,0 +1,227 @@
+<?xml version="1.0" ?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+    <Fragment>
+        <ComponentGroup Id="HarvestedAddInFiles">
+            <Component Id="CMP_AirfoilFitterFusionAddIn_manifest" Guid="FF58AE23-F0E9-4053-80F0-E9D4A48B6254" Directory="ContentsFolder">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_AirfoilFitterFusionAddIn_manifest" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_AirfoilFitterFusionAddIn_manifest" Source="../AirfoilFitterFusionAddIn.manifest" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_AirfoilFitterFusionAddIn_py" Guid="54554548-469A-4C2E-8A9A-3FC4660B7A4B" Directory="ContentsFolder">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_AirfoilFitterFusionAddIn_py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_AirfoilFitterFusionAddIn_py" Source="../AirfoilFitterFusionAddIn.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_LICENSE" Guid="30D76D35-4ABA-4029-B0A0-35F9FBC16957" Directory="ContentsFolder">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_LICENSE" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_LICENSE" Source="../LICENSE" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_README_md" Guid="36BCC651-7B66-41EE-83AC-29E6E758174D" Directory="ContentsFolder">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_README_md" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_README_md" Source="../README.md" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP__github_workflows_build_installer_yml" Guid="218F6A3D-95C1-4DC5-82DC-AD2E62B16F83" Directory="DIR__github_workflows">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE__github_workflows_build_installer_yml" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE__github_workflows_build_installer_yml" Source="../.github/workflows/build-installer.yml" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_core_airfoil_processor_py" Guid="82B37BCF-B23B-4879-B2AC-ABEF3CAA1324" Directory="DIR_core">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_core_airfoil_processor_py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_core_airfoil_processor_py" Source="../core/airfoil_processor.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_core_bspline_processor_py" Guid="F7F8E0AD-C4A8-4D8E-AFC0-3FF09D061E52" Directory="DIR_core">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_core_bspline_processor_py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_core_bspline_processor_py" Source="../core/bspline_processor.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_core_config_py" Guid="F1E05E19-CD9C-49E9-8873-C66E92360B76" Directory="DIR_core">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_core_config_py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_core_config_py" Source="../core/config.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_core___init___py" Guid="020FA793-7F53-4941-BD37-A2A2EB061EA5" Directory="DIR_core">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_core___init___py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_core___init___py" Source="../core/__init__.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_logic_fitter_py" Guid="2D6462FA-8408-40A7-B01A-BC37DCF03C93" Directory="DIR_logic">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_logic_fitter_py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_logic_fitter_py" Source="../logic/fitter.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_logic_state_py" Guid="B334F3D4-6764-4115-A3B0-6F411764B0B9" Directory="DIR_logic">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_logic_state_py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_logic_state_py" Source="../logic/state.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_logic___init___py" Guid="FB96310C-151D-42DD-8473-84C2535D1ED1" Directory="DIR_logic">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_logic___init___py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_logic___init___py" Source="../logic/__init__.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_resources_FusionFitterCommand_16x16_svg" Guid="8748D843-2002-49EB-9361-E9844291F709" Directory="DIR_resources_FusionFitterCommand">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_resources_FusionFitterCommand_16x16_svg" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_resources_FusionFitterCommand_16x16_svg" Source="../resources/FusionFitterCommand/16x16.svg" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_resources_FusionFitterCommand_32x32_svg" Guid="A29749DF-6A3B-4D80-9809-630862F10732" Directory="DIR_resources_FusionFitterCommand">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_resources_FusionFitterCommand_32x32_svg" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_resources_FusionFitterCommand_32x32_svg" Source="../resources/FusionFitterCommand/32x32.svg" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_resources_FusionFitterCommand_favicon_ico" Guid="03176337-E831-4F93-B29D-6F8677B9B7CE" Directory="DIR_resources_FusionFitterCommand">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_resources_FusionFitterCommand_favicon_ico" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_resources_FusionFitterCommand_favicon_ico" Source="../resources/FusionFitterCommand/favicon.ico" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_resources_FusionFitterCommand_tooltip_png" Guid="08E2801E-F544-459B-ACDF-0926D10CC069" Directory="DIR_resources_FusionFitterCommand">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_resources_FusionFitterCommand_tooltip_png" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_resources_FusionFitterCommand_tooltip_png" Source="../resources/FusionFitterCommand/tooltip.png" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_resources_FusionFitterCommand_flip_16x16_svg" Guid="13278C93-17BF-47CE-BB1D-74C145A0AE82" Directory="DIR_resources_FusionFitterCommand_flip">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_resources_FusionFitterCommand_flip_16x16_svg" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_resources_FusionFitterCommand_flip_16x16_svg" Source="../resources/FusionFitterCommand/flip/16x16.svg" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_resources_FusionFitterCommand_flip_32x32_svg" Guid="799B2E6E-0B8C-40DC-BC80-B9CB48D642DE" Directory="DIR_resources_FusionFitterCommand_flip">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_resources_FusionFitterCommand_flip_32x32_svg" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_resources_FusionFitterCommand_flip_32x32_svg" Source="../resources/FusionFitterCommand/flip/32x32.svg" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_resources_FusionFitterCommand_rotate_16x16_svg" Guid="1796F2C8-03E6-4FCB-AD71-D224615653A1" Directory="DIR_resources_FusionFitterCommand_rotate">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_resources_FusionFitterCommand_rotate_16x16_svg" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_resources_FusionFitterCommand_rotate_16x16_svg" Source="../resources/FusionFitterCommand/rotate/16x16.svg" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_resources_FusionFitterCommand_rotate_32x32_svg" Guid="C0749904-9305-4AB2-AE29-18DEFA767A4B" Directory="DIR_resources_FusionFitterCommand_rotate">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_resources_FusionFitterCommand_rotate_32x32_svg" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_resources_FusionFitterCommand_rotate_32x32_svg" Source="../resources/FusionFitterCommand/rotate/32x32.svg" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_ui_dialog_py" Guid="DC2E24F1-563F-43EE-ACC0-F6F5506CAE57" Directory="DIR_ui">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_ui_dialog_py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_ui_dialog_py" Source="../ui/dialog.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_ui_handlers_py" Guid="7971940A-ED74-496C-B8E9-8F280B8867D0" Directory="DIR_ui">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_ui_handlers_py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_ui_handlers_py" Source="../ui/handlers.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_ui___init___py" Guid="CC3F5BA0-A3C8-4062-B71B-576270E62713" Directory="DIR_ui">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_ui___init___py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_ui___init___py" Source="../ui/__init__.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_utils_bspline_helper_py" Guid="51F69615-1E3B-44FC-B57B-708FB985E925" Directory="DIR_utils">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_utils_bspline_helper_py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_utils_bspline_helper_py" Source="../utils/bspline_helper.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_utils_data_loader_py" Guid="D8220888-9C00-4707-B7A1-0FA8E6B77F0F" Directory="DIR_utils">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_utils_data_loader_py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_utils_data_loader_py" Source="../utils/data_loader.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_utils_dxf_exporter_py" Guid="07D3F11B-C03A-4095-A7C5-4799EC0FC302" Directory="DIR_utils">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_utils_dxf_exporter_py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_utils_dxf_exporter_py" Source="../utils/dxf_exporter.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_utils_fusion_geometry_helper_py" Guid="D8ED0DE7-D23E-46C8-AA7A-4087354113C8" Directory="DIR_utils">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_utils_fusion_geometry_helper_py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_utils_fusion_geometry_helper_py" Source="../utils/fusion_geometry_helper.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="CMP_utils___init___py" Guid="3F85F6AC-6D2B-4F0E-8C4E-797E73F855BC" Directory="DIR_utils">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Files\FILE_utils___init___py" Name="installed" Type="integer" Value="1" Action="write"/>
+                <File Id="FILE_utils___init___py" Source="../utils/__init__.py" KeyPath="yes"/>
+            </Component>
+            <Component Id="RMDIR_resources_FusionFitterCommand_flip" Guid="FEA1C349-A50D-4A17-A2EC-12138931EDAC" Directory="DIR_resources_FusionFitterCommand_flip">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Folders\RMDIR_resources_FusionFitterCommand_flip" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFolder Id="RF__resources_FusionFitterCommand_flip" On="uninstall"/>
+            </Component>
+            <Component Id="RMDIR_resources_FusionFitterCommand_rotate" Guid="34385E39-CE89-4ACF-BC37-3EDF8EDBF1F1" Directory="DIR_resources_FusionFitterCommand_rotate">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Folders\RMDIR_resources_FusionFitterCommand_rotate" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFolder Id="RF__resources_FusionFitterCommand_rotate" On="uninstall"/>
+            </Component>
+            <Component Id="RMDIR_resources_FusionFitterCommand" Guid="1B884558-71CC-41D8-AABF-05D63F31C5C1" Directory="DIR_resources_FusionFitterCommand">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Folders\RMDIR_resources_FusionFitterCommand" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFolder Id="RF__resources_FusionFitterCommand" On="uninstall"/>
+            </Component>
+            <Component Id="RMDIR__github_workflows" Guid="70004277-5190-4FBA-AF58-543F8345F152" Directory="DIR__github_workflows">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Folders\RMDIR__github_workflows" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFolder Id="RF___github_workflows" On="uninstall"/>
+            </Component>
+            <Component Id="RMDIR__github" Guid="44A290BA-58C1-4634-9890-B611271B28C1" Directory="DIR__github">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Folders\RMDIR__github" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFolder Id="RF___github" On="uninstall"/>
+            </Component>
+            <Component Id="RMDIR_logic" Guid="1E84B2E5-FA7D-44F8-A6D7-C8D8F3E9863A" Directory="DIR_logic">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Folders\RMDIR_logic" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFolder Id="RF__logic" On="uninstall"/>
+            </Component>
+            <Component Id="RMDIR_core" Guid="6BDCD28C-2043-4846-98D9-DC5ED526004D" Directory="DIR_core">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Folders\RMDIR_core" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFolder Id="RF__core" On="uninstall"/>
+            </Component>
+            <Component Id="RMDIR_utils" Guid="D3A590B9-3638-41FB-84DE-938DC64046FA" Directory="DIR_utils">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Folders\RMDIR_utils" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFolder Id="RF__utils" On="uninstall"/>
+            </Component>
+            <Component Id="RMDIR_ui" Guid="8E50B635-2C40-4D7D-8CEB-F40A97B8B5C0" Directory="DIR_ui">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Folders\RMDIR_ui" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFolder Id="RF__ui" On="uninstall"/>
+            </Component>
+            <Component Id="RMDIR_resources" Guid="607E7D86-CE28-44F2-BB1F-D477D8F92F7B" Directory="DIR_resources">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Folders\RMDIR_resources" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFolder Id="RF__resources" On="uninstall"/>
+            </Component>
+            <Component Id="PYCACHE_core___pycache__" Guid="0F38991E-883A-4FA6-A8C7-3320FBE6336C" Directory="DIR_core___pycache__">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Pycache\PYCACHE_core___pycache__" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFile Id="RMF_pyc__core___pycache__" Name="*.pyc" On="uninstall"/>
+                <RemoveFile Id="RMF_pyo__core___pycache__" Name="*.pyo" On="uninstall"/>
+                <RemoveFolder Id="RMD_pyc__core___pycache__" On="uninstall"/>
+            </Component>
+            <Component Id="PYCACHE_logic___pycache__" Guid="56210147-1F78-4F64-8BA7-69AA51CE16AB" Directory="DIR_logic___pycache__">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Pycache\PYCACHE_logic___pycache__" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFile Id="RMF_pyc__logic___pycache__" Name="*.pyc" On="uninstall"/>
+                <RemoveFile Id="RMF_pyo__logic___pycache__" Name="*.pyo" On="uninstall"/>
+                <RemoveFolder Id="RMD_pyc__logic___pycache__" On="uninstall"/>
+            </Component>
+            <Component Id="PYCACHE_ui___pycache__" Guid="ACA1BA6B-6274-4C95-92FC-54E2575BF3F7" Directory="DIR_ui___pycache__">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Pycache\PYCACHE_ui___pycache__" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFile Id="RMF_pyc__ui___pycache__" Name="*.pyc" On="uninstall"/>
+                <RemoveFile Id="RMF_pyo__ui___pycache__" Name="*.pyo" On="uninstall"/>
+                <RemoveFolder Id="RMD_pyc__ui___pycache__" On="uninstall"/>
+            </Component>
+            <Component Id="PYCACHE_utils___pycache__" Guid="3D869A35-D1C8-4511-885D-8988AB6CB20F" Directory="DIR_utils___pycache__">
+                <RegistryValue Root="HKCU" Key="Software\AirfoilFitterFusionAddIn\Pycache\PYCACHE_utils___pycache__" Name="installed" Type="integer" Value="1" Action="write"/>
+                <RemoveFile Id="RMF_pyc__utils___pycache__" Name="*.pyc" On="uninstall"/>
+                <RemoveFile Id="RMF_pyo__utils___pycache__" Name="*.pyo" On="uninstall"/>
+                <RemoveFolder Id="RMD_pyc__utils___pycache__" On="uninstall"/>
+            </Component>
+        </ComponentGroup>
+    </Fragment>
+    <Fragment>
+        <DirectoryRef Id="ContentsFolder">
+            <Directory Id="DIR__github" Name=".github"/>
+        </DirectoryRef>
+        <DirectoryRef Id="DIR__github">
+            <Directory Id="DIR__github_workflows" Name="workflows"/>
+        </DirectoryRef>
+        <DirectoryRef Id="DIR_core">
+            <Directory Id="DIR_core___pycache__" Name="__pycache__"/>
+        </DirectoryRef>
+        <DirectoryRef Id="ContentsFolder">
+            <Directory Id="DIR_core" Name="core"/>
+        </DirectoryRef>
+        <DirectoryRef Id="DIR_logic">
+            <Directory Id="DIR_logic___pycache__" Name="__pycache__"/>
+        </DirectoryRef>
+        <DirectoryRef Id="ContentsFolder">
+            <Directory Id="DIR_logic" Name="logic"/>
+        </DirectoryRef>
+        <DirectoryRef Id="ContentsFolder">
+            <Directory Id="DIR_resources" Name="resources"/>
+        </DirectoryRef>
+        <DirectoryRef Id="DIR_resources">
+            <Directory Id="DIR_resources_FusionFitterCommand" Name="FusionFitterCommand"/>
+        </DirectoryRef>
+        <DirectoryRef Id="DIR_resources_FusionFitterCommand">
+            <Directory Id="DIR_resources_FusionFitterCommand_flip" Name="flip"/>
+        </DirectoryRef>
+        <DirectoryRef Id="DIR_resources_FusionFitterCommand">
+            <Directory Id="DIR_resources_FusionFitterCommand_rotate" Name="rotate"/>
+        </DirectoryRef>
+        <DirectoryRef Id="DIR_ui">
+            <Directory Id="DIR_ui___pycache__" Name="__pycache__"/>
+        </DirectoryRef>
+        <DirectoryRef Id="ContentsFolder">
+            <Directory Id="DIR_ui" Name="ui"/>
+        </DirectoryRef>
+        <DirectoryRef Id="DIR_utils">
+            <Directory Id="DIR_utils___pycache__" Name="__pycache__"/>
+        </DirectoryRef>
+        <DirectoryRef Id="ContentsFolder">
+            <Directory Id="DIR_utils" Name="utils"/>
+        </DirectoryRef>
+    </Fragment>
+</Wix>

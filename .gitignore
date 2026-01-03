@@ -2,3 +2,7 @@
 *.pyc
 setup/AirfoilFitterFusionAddInSetup.msi
 setup/AirfoilFitterFusionAddInSetup.wixpdb
+setup/AirfoilFitterFusionAddInSetup-Bundled.msi
+setup/AirfoilFitterFusionAddInSetup-Bundled.wixpdb
+setup/AirfoilFitterFusionAddInSetup-Standalone.msi
+setup/AirfoilFitterFusionAddInSetup-Standalone.wixpdb

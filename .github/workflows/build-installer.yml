@@ -38,20 +38,31 @@ jobs:
         with:
           python-version: '3.12'
       
-      - name: Generate WiX file fragment
+      - name: Generate WiX file fragment (Bundled)
         working-directory: setup
-        run: python generate_wxs_fragment.py
+        run: python generate_wxs_fragment.py --output Files.wxs
       
-      - name: Build MSI Installer
+      - name: Build MSI Installer (Bundled)
         working-directory: setup
         run: |
-          wix build AirfoilFitterFusionAddIn.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusionAddInSetup.msi
+          wix build AirfoilFitterFusionAddIn.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusionAddInSetup-Bundled.msi
       
-      - name: Upload MSI Artifact
+      - name: Generate WiX file fragment (Standalone)
+        working-directory: setup
+        run: python generate_wxs_fragment.py --exclude-lib --output Files-Standalone.wxs
+      
+      - name: Build MSI Installer (Standalone)
+        working-directory: setup
+        run: |
+          wix build AirfoilFitterFusionAddIn-Standalone.wxs Files-Standalone.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusionAddInSetup-Standalone.msi
+      
+      - name: Upload MSI Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: AirfoilFitterFusionAddIn-Installer
-          path: setup/AirfoilFitterFusionAddInSetup.msi
+          name: AirfoilFitterFusionAddIn-Installers
+          path: |
+            setup/AirfoilFitterFusionAddInSetup-Bundled.msi
+            setup/AirfoilFitterFusionAddInSetup-Standalone.msi
           if-no-files-found: error
       
       # Upload to GitHub Releases when a tag is pushed
@@ -59,7 +70,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: setup/AirfoilFitterFusionAddInSetup.msi
+          files: |
+            setup/AirfoilFitterFusionAddInSetup-Bundled.msi
+            setup/AirfoilFitterFusionAddInSetup-Standalone.msi
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

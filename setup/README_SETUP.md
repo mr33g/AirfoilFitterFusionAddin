@@ -22,19 +22,54 @@ This folder contains the files necessary to build a Windows MSI installer for th
 
 **IMPORTANT**: If you have a previous version installed, please uninstall it via Windows Settings -> Apps before installing the new one.
 
-### 1. Harvest Files
-Run the Python script to generate the WiX file fragment (`Files.wxs`) for all files in the `AirfoilFitterFusionAddIn` directory:
+Two installer variants can be built:
 
+### Option 1: Bundled Installer (with libraries)
+
+The bundled installer includes all Python dependencies (numpy, scipy, ezdxf) in the package.
+
+**Quick build:**
 ```bash
-python generate_wxs_fragment.py
+build-bundled.bat
 ```
 
-### 2. Build the MSI
-Open a terminal in this `setup` directory and run the build command (the UI extension is required for the new installer dialogs):
+**Manual build:**
+```bash
+# 1. Generate WiX fragment (includes lib folder)
+python generate_wxs_fragment.py --output Files.wxs
+
+# 2. Build the MSI
+wix build AirfoilFitterFusionAddIn.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusionAddInSetup-Bundled.msi
+```
+
+### Option 2: Standalone Installer (without libraries)
+
+The standalone installer excludes the `lib` folder, resulting in a much smaller package. Users will need to install dependencies manually or let the add-in prompt for installation on first run.
+
+**Quick build:**
+```bash
+build-standalone.bat
+```
+
+**Manual build:**
+```bash
+# 1. Generate WiX fragment (excludes lib folder)
+python generate_wxs_fragment.py --exclude-lib --output Files-Standalone.wxs
+
+# 2. Build the MSI
+wix build AirfoilFitterFusionAddIn-Standalone.wxs Files-Standalone.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusionAddInSetup-Standalone.msi
+```
+
+### Building Both
+
+To build both installers:
 
 ```bash
-wix build AirfoilFitterFusionAddIn.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusionAddInSetup.msi
+build-bundled.bat
+build-standalone.bat
 ```
+
+The GitHub Actions workflow automatically builds both variants and uploads them to releases.
 
 ## Autodesk Bundle Structure
 

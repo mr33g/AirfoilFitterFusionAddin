@@ -1,11 +1,12 @@
 import os
 import uuid
 import hashlib
+import argparse
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
 # Directories to exclude from the installer (don't install files from these)
-EXCLUDED_DIRS = {
+BASE_EXCLUDED_DIRS = {
     'setup',        # Don't include the setup folder (contains MSI, build artifacts)
     '.git',         # Don't include git repository
     '.vscode',      # Don't include VS Code settings
@@ -36,21 +37,33 @@ def make_id(prefix, path):
     hash_str = hashlib.md5(path.encode()).hexdigest()[:16]
     return f"{prefix}_{hash_str}"
 
-def should_exclude_dir(dirpath, source_dir):
+def should_exclude_dir(dirpath, source_dir, excluded_dirs):
     """Check if a directory should be excluded."""
     rel_path = os.path.relpath(dirpath, source_dir)
     parts = rel_path.split(os.sep)
     
     # Check if any part of the path is in excluded dirs
     for part in parts:
-        if part in EXCLUDED_DIRS:
+        if part in excluded_dirs:
             return True
     return False
 
-def generate_wxs_fragment(source_dir, output_file, component_group_id, directory_id_root):
+def generate_wxs_fragment(source_dir, output_file, component_group_id, directory_id_root, exclude_lib=False):
     """
     Generates a WiX v4+ fragment (.wxs) for all files in a source directory.
+    
+    Args:
+        source_dir: Source directory to scan
+        output_file: Output .wxs file path
+        component_group_id: WiX component group ID
+        directory_id_root: Root directory ID
+        exclude_lib: If True, exclude the 'lib' directory from the installer
     """
+    # Build excluded directories list
+    excluded_dirs = BASE_EXCLUDED_DIRS.copy()
+    if exclude_lib:
+        excluded_dirs.add('lib')
+    
     # Use the WiX v4+ namespace
     root = ET.Element("Wix", xmlns="http://wixtoolset.org/schemas/v4/wxs")
     fragment = ET.SubElement(root, "Fragment")
@@ -67,7 +80,7 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
         rel_path = os.path.relpath(dirpath, source_dir)
         
         # Skip fully excluded directories (but NOT __pycache__ - we need those for cleanup)
-        if should_exclude_dir(dirpath, source_dir):
+        if should_exclude_dir(dirpath, source_dir, excluded_dirs):
             # Check if this is a __pycache__ directory - we need to track these for cleanup
             if os.path.basename(dirpath) == '__pycache__':
                 pycache_dirs.add(rel_path)
@@ -77,7 +90,7 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
             
         # Prune excluded directories from walk (but still record __pycache__ paths above)
         original_dirnames = list(dirnames)
-        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIRS]
+        dirnames[:] = [d for d in dirnames if d not in excluded_dirs]
         
         # Track __pycache__ subdirectories for cleanup
         for d in original_dirnames:
@@ -102,11 +115,11 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
     file_count = 0
     for dirpath, dirnames, filenames in os.walk(source_dir):
         # Skip excluded directories
-        if should_exclude_dir(dirpath, source_dir):
+        if should_exclude_dir(dirpath, source_dir, excluded_dirs):
             continue
             
         # Prune excluded directories from walk
-        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIRS]
+        dirnames[:] = [d for d in dirnames if d not in excluded_dirs]
             
         rel_path = os.path.relpath(dirpath, source_dir)
         dir_id = dir_map.get(rel_path, directory_id_root)
@@ -238,12 +251,21 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(xml_str)
     
-    print(f"Generated {output_file} (WiX v4+) with {file_count} files.")
+    variant = "without lib" if exclude_lib else "with lib"
+    print(f"Generated {output_file} (WiX v4+) with {file_count} files ({variant}).")
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Generate WiX fragment file for installer')
+    parser.add_argument('--exclude-lib', action='store_true',
+                        help='Exclude the lib directory from the installer (for standalone version)')
+    parser.add_argument('--output', default='Files.wxs',
+                        help='Output file name (default: Files.wxs)')
+    args = parser.parse_args()
+    
     generate_wxs_fragment(
         source_dir="..",
-        output_file="Files.wxs",
+        output_file=args.output,
         component_group_id="HarvestedAddInFiles",
-        directory_id_root="ContentsFolder"
+        directory_id_root="ContentsFolder",
+        exclude_lib=args.exclude_lib
     )
