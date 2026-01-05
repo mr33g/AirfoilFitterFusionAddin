@@ -101,6 +101,7 @@ def run_fitter(inputs, is_preview):
             
             processor = AirfoilProcessor(logger_func=lambda msg: None)
             if not processor.load_airfoil_data_and_initialize_model(file_path):
+                app.userInterface.messageBox('Failed to load airfoil data, please check the file path and try again.')
                 return False
                 
             bspline = BSplineProcessor()
@@ -115,7 +116,9 @@ def run_fitter(inputs, is_preview):
                 enforce_g2=enforce_g2, enforce_g3=enforce_g3,
                 enforce_te_tangency=enforce_te_tangent, single_span=True
             )
-            if not success: return False
+            if not success: 
+                app.userInterface.messageBox('Failed to fit airfoil, please check the input parameters and try again.')
+                return False
                 
             def calc_max_err(curve, data, exponent):
                 if not curve: return 0.0, 0.0
@@ -316,5 +319,6 @@ def run_fitter(inputs, is_preview):
                     
         return True
     except:
-        app.log(f"FF Error: {traceback.format_exc()}")
+        app.log(f"Error: {traceback.format_exc()}")
+        app.userInterface.messageBox('An error occurred, please check the log for more details.')
         return False

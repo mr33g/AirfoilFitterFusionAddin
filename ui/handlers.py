@@ -170,10 +170,19 @@ class FusionFitterCommandDestroyedHandler(adsk.core.CommandEventHandler):
     def __init__(self):
         super().__init__()
     def notify(self, args):
-        """Clean up preview graphics when command is destroyed (finished or cancelled)."""
+        """Clean up when command is destroyed (finished or cancelled)."""
         try:
-            if state.preview_graphics:
-                state.preview_graphics.deleteMe()
-                state.preview_graphics = None
+            # Clean up temporary DXF file if it exists
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            dxf_path = os.path.join(temp_dir, "fusion_fitter_temp.dxf")
+            if os.path.exists(dxf_path):
+                try:
+                    os.remove(dxf_path)
+                except:
+                    pass
+            
+            # Reset all state to default values (includes preview graphics cleanup)
+            state.reset_state()
         except Exception as e:
             pass
