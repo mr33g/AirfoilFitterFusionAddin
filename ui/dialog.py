@@ -56,11 +56,24 @@ def create_ui_inputs(inputs):
         preview = inputs.addBoolValueInput('do_preview', 'Preview', True, '', True)
         preview.isVisible = False
         
-        # 6. Editable (Initially Hidden)
+        # 6. Curvature Comb (Initially Hidden)
+        curvature_comb = inputs.addBoolValueInput('curvature_comb', 'Curvature comb', True, 'resources/FusionFitterCommand/comb', False)
+        curvature_comb.isVisible = False
+        
+        # Curvature Comb Settings (Initially Hidden)
+        comb_scale = inputs.addFloatSliderCommandInput('comb_scale', 'Comb Scale', "", 0.0001, 0.05, False)
+        comb_scale.valueOne = 0.005
+        comb_scale.isVisible = False
+        
+        comb_density = inputs.addIntegerSliderCommandInput('comb_density', 'Comb Density', 10, 500, False)
+        comb_density.valueOne = 200
+        comb_density.isVisible = False
+        
+        # 7. Editable (Initially Hidden)
         editable = inputs.addBoolValueInput('editable_splines', 'Editable', True, '', False)
         editable.isVisible = False
 
-        # 7. Status / Deviation info (Initially Hidden)
+        # 8. Status / Deviation info (Initially Hidden)
         status_box = inputs.addTextBoxCommandInput('status_box', '', '', 4, True)
         status_box.isFullWidth = True
         status_box.isVisible = False

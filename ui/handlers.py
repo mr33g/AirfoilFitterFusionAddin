@@ -86,18 +86,39 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
             elif changed_id == 'flip_airfoil':
                 state.flip_orientation = not state.flip_orientation
             
+            elif changed_id == 'curvature_comb':
+                # Show/hide comb settings based on checkbox
+                comb_checked = inputs.itemById('curvature_comb').value
+                comb_scale_item = inputs.itemById('comb_scale')
+                comb_density_item = inputs.itemById('comb_density')
+                if comb_scale_item:
+                    comb_scale_item.isVisible = comb_checked
+                if comb_density_item:
+                    comb_density_item.isVisible = comb_checked
+            
             chord_line_input = inputs.itemById('chord_line')
             file_path_input = inputs.itemById('file_path')
             has_selection = chord_line_input.selectionCount > 0 and file_path_input.value != ""
             
             toggle_ids = ['cp_count', 'te_thickness', 'smoothness_input', 'enforce_g2', 
                           'enforce_g3', 'enforce_te_tangency', 'import_raw', 
-                          'rotate_airfoil', 'flip_airfoil', 'do_preview', 'editable_splines', 'status_box']
+                          'rotate_airfoil', 'flip_airfoil', 'do_preview', 'curvature_comb', 
+                          'comb_scale', 'comb_density', 'editable_splines', 'status_box']
             
             for input_id in toggle_ids:
                 item = inputs.itemById(input_id)
                 if item:
                     item.isVisible = has_selection
+            
+            # Handle comb settings visibility based on checkbox state
+            if has_selection:
+                comb_checked = inputs.itemById('curvature_comb').value if inputs.itemById('curvature_comb') else False
+                comb_scale_item = inputs.itemById('comb_scale')
+                comb_density_item = inputs.itemById('comb_density')
+                if comb_scale_item:
+                    comb_scale_item.isVisible = comb_checked and has_selection
+                if comb_density_item:
+                    comb_density_item.isVisible = comb_checked and has_selection
 
             if changed_id in ['chord_line', 'select_file', 'rotate_airfoil', 'flip_airfoil']:
                 te_input = adsk.core.DistanceValueCommandInput.cast(inputs.itemById('te_thickness'))
@@ -142,7 +163,8 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
             if preview_checked:
                 refit_ids = ['cp_count', 'smoothness_input', 'enforce_g2', 
                              'enforce_g3', 'enforce_te_tangency', 'file_path']
-                update_ids = ['te_thickness', 'import_raw', 'rotate_airfoil', 'flip_airfoil', 'chord_line']
+                update_ids = ['te_thickness', 'import_raw', 'rotate_airfoil', 'flip_airfoil', 'chord_line',
+                             'curvature_comb', 'comb_scale', 'comb_density']
                 if changed_id in refit_ids:
                     state.needs_refit = True
                     state.needs_preview = True

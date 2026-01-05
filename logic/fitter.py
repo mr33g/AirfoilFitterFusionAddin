@@ -285,6 +285,102 @@ def run_fitter(inputs, is_preview):
                     cg_lines_te.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(adsk.core.Color.create(255, 165, 0, 255))
                     # Set line style to dashed
                     cg_lines_te.lineStylePattern = adsk.fusion.LineStylePatterns.dashedLineStylePattern
+            
+            # Draw curvature comb if enabled
+            curvature_comb_item = inputs.itemById('curvature_comb')
+            if curvature_comb_item and curvature_comb_item.value and state.fit_cache:
+                try:
+                    from scipy import interpolate
+                    
+                    # Recreate BSpline curves from current control points (includes TE thickening if applied)
+                    upper_curve = interpolate.BSpline(
+                        state.fit_cache['upper_knots'],
+                        upper_cp,
+                        state.fit_cache['degree_u']
+                    )
+                    lower_curve = interpolate.BSpline(
+                        state.fit_cache['lower_knots'],
+                        lower_cp,
+                        state.fit_cache['degree_l']
+                    )
+                    
+                    # Get comb settings
+                    comb_scale_item = inputs.itemById('comb_scale')
+                    comb_density_item = inputs.itemById('comb_density')
+                    comb_scale = comb_scale_item.valueOne if comb_scale_item else 0.05
+                    # IntegerSliderCommandInput uses .value, not .valueOne
+                    comb_density = int(comb_density_item.valueOne) if comb_density_item else 200
+                    
+                    # Calculate comb data
+                    comb_data = bspline_helper.calculate_curvature_comb_data(
+                        upper_curve, lower_curve,
+                        num_points_per_segment=comb_density,
+                        scale_factor=comb_scale
+                    )
+                    
+                    if comb_data and len(comb_data) == 2:
+                        
+                        # Draw comb for upper and lower curves
+                        for curve_idx, curve_comb_hairs in enumerate(comb_data):
+                            if not curve_comb_hairs:
+                                continue
+                            
+                            # Collect all coordinates and indices for comb hairs and outer tips
+                            all_coords = []
+                            hair_indices = []
+                            outer_tips_coords = []  # Coordinates for the outer tips (end points of hairs)
+                            
+                            coord_idx = 0
+                            for hair_segment in curve_comb_hairs:
+                                # Transform hair segment from airfoil space to world space
+                                start_pt_airfoil = hair_segment[0]
+                                end_pt_airfoil = hair_segment[1]
+                                
+                                # Transform to world coordinates
+                                start_world = adsk.core.Point3D.create(
+                                    start_pt_airfoil[0] * chord_length,
+                                    start_pt_airfoil[1] * chord_length,
+                                    0
+                                )
+                                end_world = adsk.core.Point3D.create(
+                                    end_pt_airfoil[0] * chord_length,
+                                    end_pt_airfoil[1] * chord_length,
+                                    0
+                                )
+                                start_world.transformBy(airfoil_to_world)
+                                end_world.transformBy(airfoil_to_world)
+                                
+                                # Add to coordinates for hairs
+                                all_coords.extend([start_world.x, start_world.y, start_world.z])
+                                all_coords.extend([end_world.x, end_world.y, end_world.z])
+                                
+                                # Hair line indices (connect start to end)
+                                hair_indices.extend([coord_idx, coord_idx + 1])
+                                
+                                # Collect outer tips (end points of hairs) for the outline
+                                outer_tips_coords.extend([end_world.x, end_world.y, end_world.z])
+                                
+                                coord_idx += 2
+                            
+                            # Draw comb hairs (light blue)
+                            if all_coords and hair_indices:
+                                cg_coords_hairs = adsk.fusion.CustomGraphicsCoordinates.create(all_coords)
+                                cg_hairs = state.preview_graphics.addLines(cg_coords_hairs, hair_indices, False)
+                                if cg_hairs:
+                                    # Light blue color (RGB: 40, 169, 212)
+                                    cg_hairs.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(adsk.core.Color.create(40, 169, 212, 255))
+
+                            # Draw red outline connecting the outer tips of the hairs
+                            if len(outer_tips_coords) >= 6:  # At least 2 points
+                                outer_tips_indices = [int(i) for i in range(len(outer_tips_coords) // 3)]
+                                cg_coords_outline = adsk.fusion.CustomGraphicsCoordinates.create(outer_tips_coords)
+                                cg_outline = state.preview_graphics.addLines(cg_coords_outline, outer_tips_indices, True)
+                                if cg_outline:
+                                    # Red color for outline
+                                    cg_outline.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(adsk.core.Color.create(255, 0, 0, 255))
+                
+                except Exception as e:
+                    app.log(f"Error drawing curvature comb: {e}")
         else:
             file_path = inputs.itemById('file_path').value
             sketch_name = os.path.splitext(os.path.basename(file_path))[0] if file_path else "Fitted Airfoil"
