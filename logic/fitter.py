@@ -94,8 +94,22 @@ def run_fitter(inputs, is_preview):
                 return False
                 
             cp_count = inputs.itemById('cp_count').value
-            enforce_g2 = inputs.itemById('enforce_g2').value
-            enforce_g3 = inputs.itemById('enforce_g3').value if enforce_g2 else False
+            
+            # Get continuity level from dropdown
+            continuity_dropdown = inputs.itemById('continuity_level')
+            enforce_g2 = False
+            enforce_g3 = False
+            if continuity_dropdown:
+                selected_item = continuity_dropdown.selectedItem
+                if selected_item:
+                    if selected_item.name == 'G2':
+                        enforce_g2 = True
+                        enforce_g3 = False
+                    elif selected_item.name == 'G3':
+                        enforce_g2 = True  # G3 requires G2
+                        enforce_g3 = True
+                    # G1: enforce_g2 = False, enforce_g3 = False (already set)
+            
             enforce_te_tangent = inputs.itemById('enforce_te_tangency').value
             smoothness = inputs.itemById('smoothness_input').valueOne
             

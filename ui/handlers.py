@@ -54,6 +54,15 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
         try:
             event_args = adsk.core.InputChangedEventArgs.cast(args)
             inputs = event_args.inputs
+            # Get the root command inputs
+            app = adsk.core.Application.get()
+            try:
+                cmd = event_args.firingEvent.sender
+                if cmd:
+                    inputs = cmd.commandInputs
+            except:
+                pass
+         
             changed_id = event_args.input.id
             
             if changed_id == 'select_file':
@@ -70,15 +79,10 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
                         state.needs_refit = True
                         state.needs_preview = True
             
-            elif changed_id == 'enforce_g3':
-                g3_value = inputs.itemById('enforce_g3').value
-                if g3_value and not inputs.itemById('enforce_g2').value:
-                    inputs.itemById('enforce_g2').value = True
-            
-            elif changed_id == 'enforce_g2':
-                g2_value = inputs.itemById('enforce_g2').value
-                if not g2_value and inputs.itemById('enforce_g3').value:
-                    inputs.itemById('enforce_g3').value = False
+            elif changed_id in ['continuity_level', 'smoothness_input', 'cp_count', 'enforce_te_tangency']:
+                #trigger refit
+                state.needs_refit = True
+                state.needs_preview = True
             
             elif changed_id == 'rotate_airfoil':
                 state.rotation_state = (state.rotation_state + 1) % 4
@@ -100,10 +104,10 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
             file_path_input = inputs.itemById('file_path')
             has_selection = chord_line_input.selectionCount > 0 and file_path_input.value != ""
             
-            toggle_ids = ['cp_count', 'te_thickness', 'smoothness_input', 'enforce_g2', 
-                          'enforce_g3', 'enforce_te_tangency', 'import_raw', 
+            toggle_ids = ['cp_count', 'te_thickness', 'smoothness_input', 'continuity_level',
+                          'enforce_te_tangency', 'import_raw', 
                           'rotate_airfoil', 'flip_airfoil', 'do_preview', 'curvature_comb', 
-                          'comb_scale', 'comb_density', 'editable_splines', 'status_box']
+                          'comb_scale', 'comb_density', 'editable_splines', 'status_box', 'fitter_settings', 'import_settings']
             
             for input_id in toggle_ids:
                 item = inputs.itemById(input_id)
@@ -121,6 +125,10 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
                     comb_density_item.isVisible = comb_checked and has_selection
 
             if changed_id in ['chord_line', 'select_file', 'rotate_airfoil', 'flip_airfoil']:
+                import_settings_group = inputs.itemById('import_settings')
+                if import_settings_group and has_selection:
+                    import_settings_group.isVisible = True
+                
                 te_input = adsk.core.DistanceValueCommandInput.cast(inputs.itemById('te_thickness'))
                 chord_line_input = inputs.itemById('chord_line')
                 if te_input and chord_line_input.selectionCount > 0:
@@ -161,8 +169,8 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
             preview_item = inputs.itemById('do_preview')
             preview_checked = preview_item.value if preview_item else False
             if preview_checked:
-                refit_ids = ['cp_count', 'smoothness_input', 'enforce_g2', 
-                             'enforce_g3', 'enforce_te_tangency', 'file_path']
+                refit_ids = ['cp_count', 'smoothness_input', 'continuity_level',
+                             'enforce_te_tangency', 'file_path']
                 update_ids = ['te_thickness', 'import_raw', 'rotate_airfoil', 'flip_airfoil', 'chord_line',
                              'curvature_comb', 'comb_scale', 'comb_density']
                 if changed_id in refit_ids:
