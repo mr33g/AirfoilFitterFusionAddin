@@ -107,7 +107,7 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
             toggle_ids = ['cp_count', 'te_thickness', 'smoothness_input', 'continuity_level',
                           'enforce_te_tangency', 'import_raw', 
                           'rotate_airfoil', 'flip_airfoil', 'do_preview', 'curvature_comb', 
-                          'comb_scale', 'comb_density', 'editable_splines', 'status_box', 'fitter_settings', 'import_settings']
+                          'comb_scale', 'comb_density', 'editable_splines', 'fitter_settings', 'import_settings']
             
             for input_id in toggle_ids:
                 item = inputs.itemById(input_id)

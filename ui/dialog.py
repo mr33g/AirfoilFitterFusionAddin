@@ -90,11 +90,6 @@ def create_ui_inputs(inputs):
         editable = inputs.addBoolValueInput('editable_splines', 'Keep Result Editable', True, '', False)
         editable.isVisible = False
 
-        # 8. Status / Deviation info (Initially Hidden)
-        status_box = inputs.addTextBoxCommandInput('status_box', '', '', 2, True)
-        status_box.isFullWidth = True
-        status_box.isVisible = False
-
     except Exception as e:
         app = adsk.core.Application.get()
         app.userInterface.messageBox('UI Creation Failed:\n{}'.format(traceback.format_exc()))

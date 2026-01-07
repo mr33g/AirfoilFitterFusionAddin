@@ -8,6 +8,8 @@ from core.airfoil_processor import AirfoilProcessor
 from core.bspline_processor import BSplineProcessor
 from utils.fusion_geometry_helper import create_fusion_spline, import_splines_via_dxf
 from utils import bspline_helper
+from logic.preview_renderer import render_preview
+
 
 def run_fitter(inputs, is_preview):
     """Core logic for fitting and geometry generation."""
@@ -135,14 +137,16 @@ def run_fitter(inputs, is_preview):
                 return False
                 
             def calc_max_err(curve, data, exponent):
-                if not curve: return 0.0, 0.0
+                if not curve: return 0.0, np.array([0.0, 0.0])
                 u_params = bspline_helper.create_parameter_from_x_coords(data, exponent)
                 diffs = np.linalg.norm(data - curve(u_params), axis=1)
                 idx = np.argmax(diffs)
-                return diffs[idx], data[idx, 0]
+                # Return error value and the data point with max deviation
+                # The spline intersection point will be calculated later when drawing
+                return diffs[idx], data[idx].copy()  # Return full (x, y) coordinates of data point
 
-            err_u, _ = calc_max_err(bspline.upper_curve, processor.upper_data, bspline.param_exponent_upper)
-            err_l, _ = calc_max_err(bspline.lower_curve, processor.lower_data, bspline.param_exponent_lower)
+            err_u, max_err_pt_u = calc_max_err(bspline.upper_curve, processor.upper_data, bspline.param_exponent_upper)
+            err_l, max_err_pt_l = calc_max_err(bspline.lower_curve, processor.lower_data, bspline.param_exponent_lower)
             
             state.fit_cache = {
                 'upper_cp_raw': bspline.upper_control_points.copy(),
@@ -151,6 +155,7 @@ def run_fitter(inputs, is_preview):
                 'degree_u': bspline.degree_upper, 'degree_l': bspline.degree_lower,
                 'is_sharp': bspline.is_sharp_te,
                 'err_u': err_u, 'err_l': err_l,
+                'max_err_pt_u': max_err_pt_u, 'max_err_pt_l': max_err_pt_l,  # Store coordinates of max deviation points
                 'raw_upper': processor.upper_data, 'raw_lower': processor.lower_data
             }
 
@@ -171,10 +176,7 @@ def run_fitter(inputs, is_preview):
         units_mgr = design.unitsManager
         def_units = units_mgr.defaultLengthUnits
         decimals = 2 if 'in' not in def_units else 4
-        err_u_val = units_mgr.convert(state.fit_cache['err_u'] * chord_length, 'cm', def_units)
-        err_l_val = units_mgr.convert(state.fit_cache['err_l'] * chord_length, 'cm', def_units)
-        inputs.itemById('status_box').text = f"Upper Max Err: {err_u_val:.{decimals}f} {def_units}\nLower Max Err: {err_l_val:.{decimals}f} {def_units}"
-
+       
         # 5. Render Geometry
         def transform_pts(pts, target):
             is_sketch = hasattr(target, 'modelToSketchSpace')
@@ -198,203 +200,15 @@ def run_fitter(inputs, is_preview):
         if is_preview:
             target_sketch = selected_line.parentSketch
             target_sketch.is3D = True
-            u_cp_trans = transform_pts(upper_cp, target_sketch)
-            l_cp_trans = transform_pts(lower_cp, target_sketch)
-            create_fusion_spline(target_sketch, u_cp_trans, state.fit_cache['upper_knots'], state.fit_cache['degree_u'])
-            create_fusion_spline(target_sketch, l_cp_trans, state.fit_cache['lower_knots'], state.fit_cache['degree_l'])
+            create_fusion_spline(target_sketch, transform_pts(upper_cp, target_sketch), state.fit_cache['upper_knots'], state.fit_cache['degree_u'])
+            create_fusion_spline(target_sketch, transform_pts(lower_cp, target_sketch), state.fit_cache['lower_knots'], state.fit_cache['degree_l'])
             
-            # Create custom graphics for control polygon (selection-immune)
-            root = design.rootComponent
-            state.preview_graphics = root.customGraphicsGroups.add()
-            
-            # Convert control points to world coordinates for custom graphics
-            def get_world_pts(cp_list):
-                """Convert control points to world coordinates as flat list [x, y, z, x, y, z, ...]"""
-                coords = []
-                for pt in cp_list:
-                    p_world = adsk.core.Point3D.create(pt[0] * chord_length, pt[1] * chord_length, 0)
-                    p_world.transformBy(airfoil_to_world)
-                    coords.extend([p_world.x, p_world.y, p_world.z])
-                return coords
-            
-            # Build coordinate arrays for upper and lower control polygons
-            upper_coords = get_world_pts(upper_cp)
-            lower_coords = get_world_pts(lower_cp)
-            
-            # Helper function to create connectivity indices for sequential lines
-            # Try using sequential indices with isLineStrip=True for a connected polyline
-            def create_line_indices(num_points):
-                """Create sequential indices for a polyline: [0, 1, 2, 3, ...]"""
-                if num_points < 2:
-                    return []
-                # Return sequential indices for use with isLineStrip=True
-                return [int(i) for i in range(num_points)]
-            
-            # Draw control polygon lines using custom graphics
-            # Upper polygon lines - use isLineStrip=True with sequential indices
-            num_upper_points = len(upper_cp)
-            if num_upper_points >= 2 and len(upper_coords) >= 6:  # At least 2 points (6 coords)
-                try:
-                    cg_coords_upper = adsk.fusion.CustomGraphicsCoordinates.create(upper_coords)
-                    upper_indices = create_line_indices(num_upper_points)
-                    # Use isLineStrip=True to connect points sequentially
-                    cg_lines_upper = state.preview_graphics.addLines(cg_coords_upper, upper_indices, True)
-                    if cg_lines_upper:
-                        # Set color to orange (RGB: 255, 165, 0)
-                        cg_lines_upper.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(adsk.core.Color.create(255, 165, 0, 255))
-                        # Set line style to dashed
-                        cg_lines_upper.lineStylePattern = adsk.fusion.LineStylePatterns.dashedLineStylePattern
-                        # cg_lines_upper.weight = 2
-                        cg_lines_upper.lineStyleScale = 0.15
-                        cg_lines_upper.isScreenSpaceLineStyle = False
-
-                except Exception as e:
-                    app.log(f"Error drawing upper control polygon: {e}")
-            
-            # Lower polygon lines - use isLineStrip=True with sequential indices
-            num_lower_points = len(lower_cp)
-            if num_lower_points >= 2 and len(lower_coords) >= 6:  # At least 2 points (6 coords)
-                try:
-                    cg_coords_lower = adsk.fusion.CustomGraphicsCoordinates.create(lower_coords)
-                    lower_indices = create_line_indices(num_lower_points)
-                    # Use isLineStrip=True to connect points sequentially
-                    cg_lines_lower = state.preview_graphics.addLines(cg_coords_lower, lower_indices, True)
-                    if cg_lines_lower:
-                        # Set color to orange (RGB: 255, 165, 0)
-                        cg_lines_lower.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(adsk.core.Color.create(255, 165, 0, 255))
-                        # Set line style to dashed
-                        cg_lines_lower.lineStylePattern = adsk.fusion.LineStylePatterns.dashedLineStylePattern
-                        # cg_lines_lower.weight = 2
-                        cg_lines_lower.lineStyleScale = .15
-                        cg_lines_lower.isScreenSpaceLineStyle = False
-
-                except Exception as e:
-                    app.log(f"Error drawing lower control polygon: {e}")
-            
-            # Draw control polygon points (handles) using sketch geometry
-            # Sketch points don't cause selection issues, so we can use them safely
-            try:
-                # Add points for upper control polygon
-                for pt in u_cp_trans:
-                    target_sketch.sketchPoints.add(adsk.core.Point3D.create(pt[0], pt[1], pt[2]))
-                # Add points for lower control polygon
-                for pt in l_cp_trans:
-                    target_sketch.sketchPoints.add(adsk.core.Point3D.create(pt[0], pt[1], pt[2]))
-            except Exception as e:
-                app.log(f"Error drawing control polygon points: {e}")
-            
-            # Draw trailing edge line if not sharp
-            if not is_sharp and num_upper_points > 0 and num_lower_points > 0:
-                # The TE line connects the last point of upper to the last point of lower
-                # Create coordinates array with just the two TE points
-                te_coords = [
-                    upper_coords[-3], upper_coords[-2], upper_coords[-1],  # Last upper point
-                    lower_coords[-3], lower_coords[-2], lower_coords[-1]   # Last lower point
-                ]
-                te_indices = [0, 1]  # Connect point 0 to point 1
-                cg_coords_te = adsk.fusion.CustomGraphicsCoordinates.create(te_coords)
-                cg_lines_te = state.preview_graphics.addLines(cg_coords_te, te_indices, False)
-                if cg_lines_te:
-                    # Set color to orange (RGB: 255, 165, 0) to match control polygon lines
-                    cg_lines_te.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(adsk.core.Color.create(255, 165, 0, 255))
-                    # Set line style to dashed
-                    cg_lines_te.lineStylePattern = adsk.fusion.LineStylePatterns.dashedLineStylePattern
-            
-            # Draw curvature comb if enabled
-            curvature_comb_item = inputs.itemById('curvature_comb')
-            if curvature_comb_item and curvature_comb_item.value and state.fit_cache:
-                try:
-                    from scipy import interpolate
-                    
-                    # Recreate BSpline curves from current control points (includes TE thickening if applied)
-                    upper_curve = interpolate.BSpline(
-                        state.fit_cache['upper_knots'],
-                        upper_cp,
-                        state.fit_cache['degree_u']
-                    )
-                    lower_curve = interpolate.BSpline(
-                        state.fit_cache['lower_knots'],
-                        lower_cp,
-                        state.fit_cache['degree_l']
-                    )
-                    
-                    # Get comb settings
-                    comb_scale_item = inputs.itemById('comb_scale')
-                    comb_density_item = inputs.itemById('comb_density')
-                    comb_scale = comb_scale_item.valueOne if comb_scale_item else 0.05
-                    # IntegerSliderCommandInput uses .value, not .valueOne
-                    comb_density = int(comb_density_item.valueOne) if comb_density_item else 200
-                    
-                    # Calculate comb data
-                    comb_data = bspline_helper.calculate_curvature_comb_data(
-                        upper_curve, lower_curve,
-                        num_points_per_segment=comb_density,
-                        scale_factor=comb_scale
-                    )
-                    
-                    if comb_data and len(comb_data) == 2:
-                        
-                        # Draw comb for upper and lower curves
-                        for curve_idx, curve_comb_hairs in enumerate(comb_data):
-                            if not curve_comb_hairs:
-                                continue
-                            
-                            # Collect all coordinates and indices for comb hairs and outer tips
-                            all_coords = []
-                            hair_indices = []
-                            outer_tips_coords = []  # Coordinates for the outer tips (end points of hairs)
-                            
-                            coord_idx = 0
-                            for hair_segment in curve_comb_hairs:
-                                # Transform hair segment from airfoil space to world space
-                                start_pt_airfoil = hair_segment[0]
-                                end_pt_airfoil = hair_segment[1]
-                                
-                                # Transform to world coordinates
-                                start_world = adsk.core.Point3D.create(
-                                    start_pt_airfoil[0] * chord_length,
-                                    start_pt_airfoil[1] * chord_length,
-                                    0
-                                )
-                                end_world = adsk.core.Point3D.create(
-                                    end_pt_airfoil[0] * chord_length,
-                                    end_pt_airfoil[1] * chord_length,
-                                    0
-                                )
-                                start_world.transformBy(airfoil_to_world)
-                                end_world.transformBy(airfoil_to_world)
-                                
-                                # Add to coordinates for hairs
-                                all_coords.extend([start_world.x, start_world.y, start_world.z])
-                                all_coords.extend([end_world.x, end_world.y, end_world.z])
-                                
-                                # Hair line indices (connect start to end)
-                                hair_indices.extend([coord_idx, coord_idx + 1])
-                                
-                                # Collect outer tips (end points of hairs) for the outline
-                                outer_tips_coords.extend([end_world.x, end_world.y, end_world.z])
-                                
-                                coord_idx += 2
-                            
-                            # Draw comb hairs (light blue)
-                            if all_coords and hair_indices:
-                                cg_coords_hairs = adsk.fusion.CustomGraphicsCoordinates.create(all_coords)
-                                cg_hairs = state.preview_graphics.addLines(cg_coords_hairs, hair_indices, False)
-                                if cg_hairs:
-                                    # Light blue color (RGB: 40, 169, 212)
-                                    cg_hairs.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(adsk.core.Color.create(40, 169, 212, 255))
-
-                            # Draw red outline connecting the outer tips of the hairs
-                            if len(outer_tips_coords) >= 6:  # At least 2 points
-                                outer_tips_indices = [int(i) for i in range(len(outer_tips_coords) // 3)]
-                                cg_coords_outline = adsk.fusion.CustomGraphicsCoordinates.create(outer_tips_coords)
-                                cg_outline = state.preview_graphics.addLines(cg_coords_outline, outer_tips_indices, True)
-                                if cg_outline:
-                                    # Red color for outline
-                                    cg_outline.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(adsk.core.Color.create(255, 0, 0, 255))
-                
-                except Exception as e:
-                    app.log(f"Error drawing curvature comb: {e}")
+            # Render all preview graphics
+            render_preview(
+                target_sketch, upper_cp, lower_cp, state.fit_cache,
+                chord_length, airfoil_to_world, y_axis_world,
+                transform_pts, inputs, is_sharp
+            )
         else:
             file_path = inputs.itemById('file_path').value
             sketch_name = os.path.splitext(os.path.basename(file_path))[0] if file_path else "Fitted Airfoil"

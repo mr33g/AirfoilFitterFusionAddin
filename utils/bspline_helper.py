@@ -407,3 +407,64 @@ def calculate_curvature_comb_data(upper_curve: interpolate.BSpline, lower_curve:
     
     return all_curves_combs if all_curves_combs else None
 
+
+def find_closest_point_on_spline(curve: interpolate.BSpline, data_point: np.ndarray, 
+                                  initial_param: float | None = None) -> tuple[np.ndarray, float]:
+    """
+    Find the point on a B-spline curve closest to a given data point.
+    This finds where the normal from the data point intersects the spline.
+    
+    Args:
+        curve: B-spline curve
+        data_point: Target point (x, y) to find closest point on curve
+        initial_param: Optional initial parameter guess (if None, will search)
+        
+    Returns:
+        Tuple of (point_on_spline, parameter_value)
+    """
+    from scipy import optimize
+    
+    # Get valid parameter range
+    t_start = curve.t[curve.k]
+    t_end = curve.t[-(curve.k + 1)]
+    
+    # If no initial guess, do a coarse search first
+    if initial_param is None:
+        # Sample the curve to find a good initial guess
+        num_samples = 100
+        t_vals = np.linspace(t_start, t_end, num_samples)
+        curve_points = curve(t_vals)
+        distances = np.linalg.norm(curve_points - data_point, axis=1)
+        closest_idx = np.argmin(distances)
+        initial_param = t_vals[closest_idx]
+    
+    # Clamp initial parameter to valid range
+    initial_param = max(t_start, min(t_end, initial_param))
+    
+    # Objective function: distance from curve point to data point
+    def distance_squared(u):
+        u_clamped = max(t_start, min(t_end, u))
+        curve_pt = curve(u_clamped)
+        diff = curve_pt - data_point
+        return np.dot(diff, diff)
+    
+    # Use optimization to find the parameter that minimizes distance
+    try:
+        result = optimize.minimize_scalar(
+            distance_squared,
+            bounds=(t_start, t_end),
+            method='bounded',
+            options={'xatol': 1e-9}
+        )
+        u_optimal = result.x
+    except:
+        # Fallback to initial guess if optimization fails
+        u_optimal = initial_param
+    
+    # Clamp to valid range
+    u_optimal = max(t_start, min(t_end, u_optimal))
+    
+    # Get the point on the curve
+    point_on_spline = curve(u_optimal)
+    
+    return point_on_spline, u_optimal
