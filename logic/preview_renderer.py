@@ -314,7 +314,47 @@ def draw_error_markers(graphics_group, upper_cp, lower_cp, fit_cache,
         fit_cache
     )
 
+def draw_raw_data_points(graphics_group, chord_length, airfoil_to_world, target_sketch, inputs):
+    """
+    Draw raw data points.
+    
+    Args:
+        graphics_group: CustomGraphicsGroup to add graphics to
+        chord_length: Chord length for scaling
+        airfoil_to_world: Transformation matrix
+        target_sketch: Target sketch for raw data points
 
+    """
+    app = adsk.core.Application.get()
+    raw_item = inputs.itemById('import_raw')
+    if not raw_item or not raw_item.value or not state.fit_cache:
+        return
+    
+    try:
+        upper_coords = _get_world_pts(state.fit_cache['raw_upper'], chord_length, airfoil_to_world)
+        lower_coords = _get_world_pts(state.fit_cache['raw_lower'], chord_length, airfoil_to_world)
+    
+        # Create CustomGraphicsPointSet
+        cg_coords_points_upper = adsk.fusion.CustomGraphicsCoordinates.create(upper_coords)
+        cg_coords_points_lower = adsk.fusion.CustomGraphicsCoordinates.create(lower_coords)
+        raw_image_path = os.path.join(_addin_dir, 'resources', 'FusionFitterCommand', 'raw', '8x8.png')
+        point_type = adsk.fusion.CustomGraphicsPointTypes.PointCloudCustomGraphicsPointType
+        cg_point_set_upper = graphics_group.addPointSet(
+            cg_coords_points_upper, 
+            [],
+            point_type,
+            raw_image_path
+        )
+        cg_point_set_lower = graphics_group.addPointSet(
+            cg_coords_points_lower, 
+            [],
+            point_type,
+            raw_image_path
+        )
+
+    except Exception as e:
+        app.log(f"Error drawing raw data points: {e}")
+        
 def render_preview(target_sketch, upper_cp, lower_cp, fit_cache, chord_length,
                    airfoil_to_world, y_axis_world, transform_pts, inputs, is_sharp):
     """
@@ -363,4 +403,5 @@ def render_preview(target_sketch, upper_cp, lower_cp, fit_cache, chord_length,
         state.preview_graphics, upper_cp, lower_cp, fit_cache,
         chord_length, airfoil_to_world, y_axis_world
     )
-
+    # Draw raw data points
+    draw_raw_data_points(state.preview_graphics, chord_length, airfoil_to_world, target_sketch, inputs)

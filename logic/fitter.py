@@ -3,7 +3,9 @@ import os
 import math
 import traceback
 import numpy as np
+from scipy import interpolate
 from logic import state
+from core import config
 from core.airfoil_processor import AirfoilProcessor
 from core.bspline_processor import BSplineProcessor
 from utils.fusion_geometry_helper import create_fusion_spline, import_splines_via_dxf
@@ -13,11 +15,6 @@ from logic.preview_renderer import render_preview
 
 def run_fitter(inputs, is_preview):
     """Core logic for fitting and geometry generation."""
-    if is_preview:
-        preview_item = inputs.itemById('do_preview')
-        if not preview_item or not preview_item.value:
-            return True
-    
     app = adsk.core.Application.get()
     
     # Cleanup old preview graphics before recalculating
@@ -33,10 +30,20 @@ def run_fitter(inputs, is_preview):
         line_select = inputs.itemById('chord_line')
         if line_select.selectionCount == 0:
             return False
+        
+        # Check if file is selected
+        file_path_input = inputs.itemById('file_path')
+        if not file_path_input or not file_path_input.value:
+            return False
+        
         selected_line = adsk.fusion.SketchLine.cast(line_select.selection(0).entity)
         if not selected_line:
             return False
             
+        # Save original chord line endpoints for alignment (before any flip transformation)
+        chord_start_world_original = selected_line.startSketchPoint.worldGeometry
+        chord_end_world_original = selected_line.endSketchPoint.worldGeometry
+        
         start_pt_world = selected_line.startSketchPoint.worldGeometry
         end_pt_world = selected_line.endSketchPoint.worldGeometry
         chord_vec_world = adsk.core.Vector3D.create(end_pt_world.x - start_pt_world.x, 
@@ -87,7 +94,6 @@ def run_fitter(inputs, is_preview):
         # 2. Fitting Logic
         do_new_fit = (state.needs_refit or not state.fit_cache) if is_preview else True
         if is_preview:
-            state.needs_preview = False
             state.needs_refit = False
 
         if do_new_fit:
@@ -95,7 +101,8 @@ def run_fitter(inputs, is_preview):
             if not file_path or not os.path.exists(file_path):
                 return False
                 
-            cp_count = inputs.itemById('cp_count').value
+            cp_count_upper = inputs.itemById('cp_count_upper').value
+            cp_count_lower = inputs.itemById('cp_count_lower').value
             
             # Get continuity level from dropdown
             continuity_dropdown = inputs.itemById('continuity_level')
@@ -119,31 +126,150 @@ def run_fitter(inputs, is_preview):
             if not processor.load_airfoil_data_and_initialize_model(file_path):
                 app.userInterface.messageBox('Failed to load airfoil data, please check the file path and try again.')
                 return False
-                
-            bspline = BSplineProcessor()
-            bspline.smoothing_weight = smoothness
             
-            success = bspline.fit_bspline(
-                processor.upper_data, processor.lower_data,
-                num_control_points=cp_count,
-                is_thickened=processor.is_trailing_edge_thickened(),
-                upper_te_tangent_vector=processor.upper_te_tangent_vector,
-                lower_te_tangent_vector=processor.lower_te_tangent_vector,
-                enforce_g2=enforce_g2, enforce_g3=enforce_g3,
-                enforce_te_tangency=enforce_te_tangent, single_span=True
-            )
-            if not success: 
-                app.userInterface.messageBox('Failed to fit airfoil, please check the input parameters and try again.')
-                return False
+            # Determine operation type based on state
+            is_initial_fit = (state.current_cp_count_upper is None and state.current_cp_count_lower is None or 
+                            state.bspline_processor is None or 
+                            not state.bspline_processor.is_fitted())
+            
+            if is_initial_fit:
+                # Initial fit: use fit_bspline with actual UI values
+                bspline = BSplineProcessor()
+                bspline.smoothing_weight = smoothness
+                
+                success = bspline.fit_bspline(
+                    processor.upper_data, processor.lower_data,
+                    num_control_points=(cp_count_upper, cp_count_lower),
+                    is_thickened=processor.is_trailing_edge_thickened(),
+                    upper_te_tangent_vector=processor.upper_te_tangent_vector,
+                    lower_te_tangent_vector=processor.lower_te_tangent_vector,
+                    enforce_g2=enforce_g2, enforce_g3=enforce_g3,
+                    enforce_te_tangency=enforce_te_tangent, single_span=True
+                )
+                if not success: 
+                    app.userInterface.messageBox('Failed to fit airfoil, please check the input parameters and try again.')
+                    return False
+                
+                # Store processor and CP count in state
+                state.bspline_processor = bspline
+                state.current_cp_count_upper = cp_count_upper
+                state.current_cp_count_lower = cp_count_lower
+                
+            else:
+                # Refinement: add or remove control points
+                bspline = state.bspline_processor
+                bspline.smoothing_weight = smoothness
+                bspline.enforce_g2 = enforce_g2
+                bspline.enforce_g3 = enforce_g3 if enforce_g2 else False
+                
+                current_cp_upper = state.current_cp_count_upper
+                current_cp_lower = state.current_cp_count_lower
+                cp_diff_upper = cp_count_upper - current_cp_upper
+                cp_diff_lower = cp_count_lower - current_cp_lower
+                
+                # Save current state to fit_cache before refinement (so we can restore when removing)
+                # This preserves the state before we modify it
+                if bspline.is_fitted():
+                    state.fit_cache['upper_cp_raw'] = bspline.upper_control_points.copy()
+                    state.fit_cache['lower_cp_raw'] = bspline.lower_control_points.copy()
+                    state.fit_cache['upper_knots'] = bspline.upper_knot_vector.copy() if bspline.upper_knot_vector is not None else None
+                    state.fit_cache['lower_knots'] = bspline.lower_knot_vector.copy() if bspline.lower_knot_vector is not None else None
+                    state.fit_cache['degree_u'] = bspline.degree_upper
+                    state.fit_cache['degree_l'] = bspline.degree_lower
+                    state.fit_cache['is_sharp'] = bspline.is_sharp_te
+                
+                def add_control_points(cp_diff, surface):
+                    # Adding control points: insert knots at max error locations
+                    # In single span mode, we need to add to both surfaces
+                    # Insert on the surface with higher error first, then alternate
+                    for i in range(cp_diff):
+                        # Determine which surface has higher error
+                        _, err_u, _, _ = bspline_helper.calculate_bspline_fitting_error(
+                            bspline.upper_curve, processor.upper_data,
+                            param_exponent=bspline.param_exponent_upper,
+                            return_max_error=True
+                        )
+                        _, err_l, _, _ = bspline_helper.calculate_bspline_fitting_error(
+                            bspline.lower_curve, processor.lower_data,
+                            param_exponent=bspline.param_exponent_lower,
+                            return_max_error=True
+                        )
+                        success = bspline.insert_knot_at_max_error(surface, single_span=True)
+                        if not success:
+                            app.userInterface.messageBox(f'Failed to insert knot on {surface} surface.')
+                            return False
+                
+                def remove_control_points(cp_diff, surface):
+                    # Removing control points: re-fit with new desired count for the changed surface
+                    # Keep the other surface's current count unchanged
+                    if surface == 'upper':
+                        target_upper = cp_count_upper  # New desired count
+                        target_lower = current_cp_lower  # Keep current
+                    else:  # lower
+                        target_upper = current_cp_upper  # Keep current
+                        target_lower = cp_count_lower  # New desired count
+                    
+                    success = bspline.fit_bspline(
+                        processor.upper_data, processor.lower_data,
+                        num_control_points=(target_upper, target_lower),
+                        is_thickened=processor.is_trailing_edge_thickened(),
+                        upper_te_tangent_vector=processor.upper_te_tangent_vector,
+                        lower_te_tangent_vector=processor.lower_te_tangent_vector,
+                        enforce_g2=enforce_g2, enforce_g3=enforce_g3,
+                        enforce_te_tangency=enforce_te_tangent, single_span=True
+                    )
+                    if not success:
+                        app.userInterface.messageBox(f'Failed to re-fit {surface} surface with reduced control points.')
+                        return False
+                    # Update state for the changed surface
+                    if surface == 'upper':
+                        state.current_cp_count_upper = cp_count_upper
+                    else:
+                        state.current_cp_count_lower = cp_count_lower
+                    return True
+                
+                # Handle upper surface changes
+                if cp_diff_upper > 0:
+                    add_control_points(cp_diff_upper, 'upper')
+                    state.current_cp_count_upper = cp_count_upper
+                elif cp_diff_upper < 0:
+                    remove_control_points(cp_diff_upper, 'upper')
+                
+                # Handle lower surface changes
+                if cp_diff_lower > 0:
+                    add_control_points(cp_diff_lower, 'lower')
+                    state.current_cp_count_lower = cp_count_lower
+                elif cp_diff_lower < 0:
+                    remove_control_points(cp_diff_lower, 'lower')
+                
+                # If both counts are unchanged but other parameters changed, re-fit
+                if cp_diff_upper == 0 and cp_diff_lower == 0:
+                    bspline.fit_bspline(
+                        processor.upper_data, processor.lower_data,
+                        num_control_points=(cp_count_upper, cp_count_lower),
+                        is_thickened=processor.is_trailing_edge_thickened(),
+                        upper_te_tangent_vector=processor.upper_te_tangent_vector,
+                        lower_te_tangent_vector=processor.lower_te_tangent_vector,
+                        enforce_g2=enforce_g2, enforce_g3=enforce_g3,
+                        enforce_te_tangency=enforce_te_tangent, single_span=True
+                    )
+                
+                # Update state (only if not already updated in remove_control_points)
+                if cp_diff_upper >= 0:
+                    state.current_cp_count_upper = cp_count_upper
+                if cp_diff_lower >= 0:
+                    state.current_cp_count_lower = cp_count_lower
                 
             def calc_max_err(curve, data, exponent):
+                """Calculate maximum error using the helper function."""
                 if not curve: return 0.0, np.array([0.0, 0.0])
-                u_params = bspline_helper.create_parameter_from_x_coords(data, exponent)
-                diffs = np.linalg.norm(data - curve(u_params), axis=1)
-                idx = np.argmax(diffs)
+                
+                _, max_error, max_error_idx, _ = bspline_helper.calculate_bspline_fitting_error(
+                    curve, data, param_exponent=exponent, return_max_error=True
+                )
+                
                 # Return error value and the data point with max deviation
-                # The spline intersection point will be calculated later when drawing
-                return diffs[idx], data[idx].copy()  # Return full (x, y) coordinates of data point
+                return max_error, data[max_error_idx].copy()  # Return full (x, y) coordinates of data point
 
             err_u, max_err_pt_u = calc_max_err(bspline.upper_curve, processor.upper_data, bspline.param_exponent_upper)
             err_l, max_err_pt_l = calc_max_err(bspline.lower_curve, processor.lower_data, bspline.param_exponent_lower)
@@ -226,7 +352,18 @@ def run_fitter(inputs, is_preview):
                 # Create a temporary sketch on the target plane to use modelToSketchSpace for accurate transformation
                 temp_sketch = parent_comp.sketches.add(target_plane)
                 u_dxf = transform_pts(upper_cp, temp_sketch); l_dxf = transform_pts(lower_cp, temp_sketch)
-                target_sketch = import_splines_via_dxf(temp_sketch, u_dxf, state.fit_cache['upper_knots'], state.fit_cache['degree_u'], l_dxf, state.fit_cache['lower_knots'], state.fit_cache['degree_l'], is_sharp, sketch_name=sketch_name)
+                # If airfoil is flipped, swap the chord start and end points
+                if state.flip_orientation:
+                    chord_start_aligned = chord_end_world_original
+                    chord_end_aligned = chord_start_world_original
+                else:
+                    chord_start_aligned = chord_start_world_original
+                    chord_end_aligned = chord_end_world_original
+                target_sketch = import_splines_via_dxf(
+                    temp_sketch, u_dxf, state.fit_cache['upper_knots'], state.fit_cache['degree_u'], 
+                    l_dxf, state.fit_cache['lower_knots'], state.fit_cache['degree_l'], is_sharp,
+                    chord_start_aligned, chord_end_aligned, sketch_name=sketch_name
+                )
                 if temp_sketch != target_sketch: temp_sketch.deleteMe()
             else:
                 target_sketch = parent_comp.sketches.add(target_plane); target_sketch.name = sketch_name
@@ -236,10 +373,6 @@ def run_fitter(inputs, is_preview):
                 if not is_sharp:
                     target_sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(u_final[-1,0], u_final[-1,1], 0), adsk.core.Point3D.create(l_final[-1,0], l_final[-1,1], 0))
         
-        if target_sketch and inputs.itemById('import_raw').value and state.fit_cache.get('raw_upper') is not None:
-            r_u = transform_pts(state.fit_cache['raw_upper'], target_sketch); r_l = transform_pts(state.fit_cache['raw_lower'], target_sketch)
-            for pt in r_u: target_sketch.sketchPoints.add(adsk.core.Point3D.create(pt[0], pt[1], pt[2]))
-            for pt in r_l: target_sketch.sketchPoints.add(adsk.core.Point3D.create(pt[0], pt[1], pt[2]))
                     
         return True
     except:

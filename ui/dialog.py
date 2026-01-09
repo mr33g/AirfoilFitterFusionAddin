@@ -25,8 +25,10 @@ def create_ui_inputs(inputs):
         groupFitterSettingsChildInputs = groupFitterSettings.children
         
         # Control Point Count (Integer Slider/Spinner)
-        cp_count = groupFitterSettingsChildInputs.addIntegerSpinnerCommandInput('cp_count', 'Control Point Count', 4, 19, 1, 10)
-        cp_count.isVisible = False
+        cp_count_upper = groupFitterSettingsChildInputs.addIntegerSpinnerCommandInput('cp_count_upper', 'CP Count Upper', 4, 19, 1, 10)
+        cp_count_lower = groupFitterSettingsChildInputs.addIntegerSpinnerCommandInput('cp_count_lower', 'CP Count Lower', 4, 19, 1, 10)
+        cp_count_upper.isVisible = False
+        cp_count_lower.isVisible = False
         
         # Smoothness penalty
         smoothness = groupFitterSettingsChildInputs.addFloatSliderCommandInput('smoothness_input', 'Smoothness Penalty', "", 0, 0.1, False)
@@ -45,7 +47,7 @@ def create_ui_inputs(inputs):
         te_tan = groupFitterSettingsChildInputs.addBoolValueInput('enforce_te_tangency', 'Enforce TE Tangency', True, '', False)
         te_tan.isVisible = False
         
-        groupImportSettings = inputs.addGroupCommandInput('import_settings', 'Import Options')
+        groupImportSettings = inputs.addGroupCommandInput('import_settings', 'Import Settings')
         groupImportSettings.isExpanded = True
         groupImportSettings.isEnabledCheckBoxDisplayed = False
         groupImportSettings.isVisible = False
@@ -67,6 +69,10 @@ def create_ui_inputs(inputs):
         te_thickness.maximumValue = 10
         te_thickness.isMaximumValueInclusive = True
 
+        # Editable Results
+        editable = groupImportSettingsChildInputs.addBoolValueInput('editable_splines', 'Editable Results', True, '', False)
+        editable.isVisible = False
+
         # 5. Curvature Comb (Initially Hidden)
         curvature_comb = inputs.addBoolValueInput('curvature_comb', 'Curvature comb', True, 'resources/FusionFitterCommand/comb', False)
         curvature_comb.isVisible = False
@@ -79,16 +85,8 @@ def create_ui_inputs(inputs):
         comb_density.valueOne = 200
         comb_density.isVisible = False
 
-        # 6. Preview (Initially Hidden)
-        preview = inputs.addBoolValueInput('do_preview', 'Preview', True, '', True)
-        preview.isVisible = False
-        
         raw = inputs.addBoolValueInput('import_raw', 'Show Input Data', True, '', False)
         raw.isVisible = False
-                
-        # 7. Editable (Initially Hidden)
-        editable = inputs.addBoolValueInput('editable_splines', 'Keep Result Editable', True, '', False)
-        editable.isVisible = False
 
     except Exception as e:
         app = adsk.core.Application.get()

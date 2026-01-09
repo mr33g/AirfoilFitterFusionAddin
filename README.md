@@ -45,9 +45,9 @@ Two MSI installer variants are available:
    - Use **Rotate 90°** to orient the airfoil plane relative to the chord line
    - Use **Flip** to reverse nose/tail direction
    - Use **TE Thickness** manipulator to add trailing edge thickness
-7. **Toggle Preview** to see the result before committing
-8. **Enable Editable** if you need to modify control points after insertion
-9. **Click OK** to insert the final geometry
+   - Preview is automatically displayed when both chord line and file are selected
+7. **Enable Editable** if you need to modify control points after insertion
+8. **Click OK** to insert the final geometry
 
 ## Features
 
@@ -74,7 +74,7 @@ Two MSI installer variants are available:
 ### Output Options
 - **Editable splines** (experimental): Create geometry via DXF import to create control-point splines that can be edited in Fusion
 - **Fixed splines**: Create read-only NURBS curves directly through the API
-- **Preview mode**: See the fitted airfoil in the sketch before committing (resource heavy)
+- **Live preview**: Preview is automatically shown when both chord line and airfoil file are selected
 - **Show input data**: Optionally display the original airfoil coordinate points for comparison
 
 ### Error Reporting

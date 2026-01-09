@@ -11,6 +11,8 @@ This module contains utility functions for B-spline operations including:
 
 import numpy as np
 from scipy import interpolate
+from scipy.spatial import cKDTree
+from typing import Tuple, Union
 
 
 def normalize_vector(vec: np.ndarray | None) -> np.ndarray | None:
@@ -407,7 +409,6 @@ def calculate_curvature_comb_data(upper_curve: interpolate.BSpline, lower_curve:
     
     return all_curves_combs if all_curves_combs else None
 
-
 def find_closest_point_on_spline(curve: interpolate.BSpline, data_point: np.ndarray, 
                                   initial_param: float | None = None) -> tuple[np.ndarray, float]:
     """
@@ -468,3 +469,119 @@ def find_closest_point_on_spline(curve: interpolate.BSpline, data_point: np.ndar
     point_on_spline = curve(u_optimal)
     
     return point_on_spline, u_optimal
+
+
+def calculate_bspline_fitting_error(
+    bspline_curve: interpolate.BSpline,
+    original_data: np.ndarray,
+    param_exponent: float = 0.5,
+    num_points_curve: int = 35000,
+    *,
+    return_max_error: bool = False,
+    return_all: bool = False,
+) -> Union[Tuple, float]:
+    """
+    Calculate fitting error for a B-spline curve against original data.
+    
+    Args:
+        bspline_curve: The B-spline curve to evaluate
+        original_data: Original data points to compare against
+        param_exponent: Parameter exponent used for parameterization (default 0.5)
+        num_points_curve: Number of points to sample on the curve for error calculation
+        return_max_error: If True, return max error and its location
+        return_all: If True, return all error distances, RMS, and max error info
+        
+    Returns:
+        If return_max_error: (sum_sq, max_error, max_error_idx, u_at_max_error)
+        If return_all: (min_dists, rms, (sum_sq, max_error_idx))
+        Otherwise: sum_sq (sum of squared errors)
+    """
+    # Approximate orthogonal by dense sampling
+    t_samples = np.linspace(0.0, 1.0, num_points_curve)
+    if len(t_samples) > 0:
+        t_samples[-1] = min(t_samples[-1], 1.0 - 1e-12)
+    sampled_curve_points = bspline_curve(t_samples)
+    sampled_curve_points = sampled_curve_points[np.argsort(sampled_curve_points[:, 0])]
+    tree = cKDTree(sampled_curve_points)
+    min_dists, _ = tree.query(original_data, k=1)
+    sum_sq = float(np.sum(min_dists ** 2))
+    
+    if return_all:
+        rms = float(np.sqrt(np.mean(min_dists ** 2)))
+        return min_dists, rms, (sum_sq, int(np.argmax(min_dists)))
+    
+    if return_max_error:
+        max_error = float(np.max(min_dists))
+        max_error_idx = int(np.argmax(min_dists))
+        
+        # Get the parameter value (u) corresponding to the max error index in original_data
+        # Use the current parameter exponent to match the parameterization used in fitting
+        u_params_original = create_parameter_from_x_coords(original_data, param_exponent)
+        u_at_max_error = u_params_original[max_error_idx]
+
+        return sum_sq, max_error, max_error_idx, u_at_max_error
+    
+    return sum_sq
+
+
+def prepare_knot_insertion_with_parameter_adjustment(
+    bspline_curve: interpolate.BSpline,
+    original_data: np.ndarray,
+    knot_vector: np.ndarray,
+    current_param_exponent: float,
+    *,
+    adjust_parameter_exponent: bool = True,
+) -> Tuple[float, float]:
+    """
+    Prepare knot insertion by finding max error location and adjusting parameter exponent.
+    
+     Args:
+        bspline_curve: The B-spline curve to evaluate
+        original_data: Original data points to compare against
+        knot_vector: Current knot vector for the curve
+        current_param_exponent: Current parameter exponent value
+        adjust_parameter_exponent: Whether to adjust the parameter exponent based on error location
+        
+    Returns:
+        Tuple of (new_knot_value, adjusted_param_exponent)
+    """
+    # Calculate fitting error and find max error location
+    _, max_err, max_error_idx, u_at_max = calculate_bspline_fitting_error(
+        bspline_curve,
+        original_data,
+        param_exponent=current_param_exponent,
+        return_max_error=True,
+    )
+    
+    # Get x-location of max error
+    x_error = original_data[max_error_idx, 0]
+    
+    # Adjust parameter exponent based on error location
+    new_param_exponent = current_param_exponent
+    if adjust_parameter_exponent:
+        if x_error > 0.7:
+            # Error is in the tail region, increase exponent (more points near tail)
+            new_param_exponent = min(0.8, current_param_exponent + 0.1)
+        elif x_error < 0.1:
+            # Error is in the nose region, decrease exponent (more points near nose)
+            new_param_exponent = max(0.35, current_param_exponent - 0.05)
+    
+    # Calculate optimal knot insertion location
+    new_knot = u_at_max
+    if knot_vector is not None:
+        idx = np.searchsorted(knot_vector, u_at_max)
+        if idx > 0 and idx < len(knot_vector):
+            t_left = knot_vector[idx - 1]
+            t_right = knot_vector[idx]
+            if t_right - t_left < 1e-4:
+                # Knots are too close, find a better location
+                span_left = t_left - knot_vector[idx - 2] if idx > 1 else 0
+                span_right = knot_vector[idx + 1] - t_right if idx < len(knot_vector) - 1 else 0
+                if span_left > span_right:
+                    new_knot = (knot_vector[idx - 2] + t_left) / 2 if idx > 1 else (t_left + t_right) / 2
+                else:
+                    new_knot = (t_right + knot_vector[idx + 1]) / 2 if idx < len(knot_vector) - 1 else (t_left + t_right) / 2
+            else:
+                new_knot = (t_left + t_right) / 2
+    
+    return new_knot, new_param_exponent

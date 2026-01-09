@@ -5,6 +5,37 @@ import os
 from ui.dialog import create_ui_inputs
 from logic import state
 from logic.fitter import run_fitter
+from core import config
+
+def reset_fitter_settings_to_defaults(inputs):
+    """Reset all fitter settings to their default values. Preserves import settings."""
+    try:
+        # Reset control point counts
+        cp_count_upper = inputs.itemById('cp_count_upper')
+        if cp_count_upper:
+            cp_count_upper.value = config.DEFAULT_CP_COUNT
+        
+        cp_count_lower = inputs.itemById('cp_count_lower')
+        if cp_count_lower:
+            cp_count_lower.value = config.DEFAULT_CP_COUNT
+        
+        # Reset smoothness penalty
+        smoothness = inputs.itemById('smoothness_input')
+        if smoothness:
+            smoothness.valueOne = config.DEFAULT_SMOOTHNESS_PENALTY
+        
+        # Reset continuity level to G1 (first item)
+        continuity_dropdown = inputs.itemById('continuity_level')
+        if continuity_dropdown:
+            for i in range(continuity_dropdown.listItems.count):
+                continuity_dropdown.listItems.item(i).isSelected = (i == 0)
+        
+        # Reset TE tangency enforcement
+        enforce_te_tangent = inputs.itemById('enforce_te_tangency')
+        if enforce_te_tangent:
+            enforce_te_tangent.value = False
+    except Exception as e:
+        pass
 
 class FusionFitterCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
     def __init__(self):
@@ -72,18 +103,36 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
                 if dlg.showOpen() == adsk.core.DialogResults.DialogOK:
                     file_input = inputs.itemById('file_path')
                     file_input.value = dlg.filename
-                    file_input.isVisible = True
-                    # If preview is active, trigger immediate update with new file
-                    preview_item = inputs.itemById('do_preview')
-                    if preview_item and preview_item.value:
+                    # file_input.isVisible = True
+                    
+                    # Reset fitter settings to defaults when a new file is selected
+                    reset_fitter_settings_to_defaults(inputs)
+                    
+                    # Reset state variables related to fitting
+                    state.fit_cache = {}
+                    state.current_cp_count_upper = None
+                    state.current_cp_count_lower = None
+                    state.bspline_processor = None
+                    
+                    # Trigger preview update when file is selected (if line is also selected)
+                    line_select = inputs.itemById('chord_line')
+                    if line_select and line_select.selectionCount > 0:
                         state.needs_refit = True
-                        state.needs_preview = True
             
-            elif changed_id in ['continuity_level', 'smoothness_input', 'cp_count', 'enforce_te_tangency']:
-                #trigger refit
+            elif changed_id in ['continuity_level', 'smoothness_input', 'cp_count_upper', 'cp_count_lower', 'enforce_te_tangency']:
+                if changed_id in ['continuity_level']:
+                    state.fit_cache = {}
+                
+                # Correct CP count values before triggering refit
+                if changed_id in ['cp_count_upper', 'cp_count_lower']:
+                    cp_upper = inputs.itemById('cp_count_upper')
+                    cp_lower = inputs.itemById('cp_count_lower')
+                    if cp_upper and cp_upper.value < 4:
+                        cp_upper.value = 4
+                    if cp_lower and cp_lower.value < 4:
+                        cp_lower.value = 4
+                
                 state.needs_refit = True
-                state.needs_preview = True
-            
             elif changed_id == 'rotate_airfoil':
                 state.rotation_state = (state.rotation_state + 1) % 4
             
@@ -100,13 +149,14 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
                 if comb_density_item:
                     comb_density_item.isVisible = comb_checked
             
+            
             chord_line_input = inputs.itemById('chord_line')
             file_path_input = inputs.itemById('file_path')
             has_selection = chord_line_input.selectionCount > 0 and file_path_input.value != ""
             
-            toggle_ids = ['cp_count', 'te_thickness', 'smoothness_input', 'continuity_level',
+            toggle_ids = ['cp_count_upper', 'cp_count_lower', 'te_thickness', 'smoothness_input', 'continuity_level',
                           'enforce_te_tangency', 'import_raw', 
-                          'rotate_airfoil', 'flip_airfoil', 'do_preview', 'curvature_comb', 
+                          'rotate_airfoil', 'flip_airfoil', 'curvature_comb', 
                           'comb_scale', 'comb_density', 'editable_splines', 'fitter_settings', 'import_settings']
             
             for input_id in toggle_ids:
@@ -166,22 +216,17 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
                         te_position = end_pt if not state.flip_orientation else start_pt
                         te_input.setManipulator(te_position, mani_dir)
 
-            preview_item = inputs.itemById('do_preview')
-            preview_checked = preview_item.value if preview_item else False
-            if preview_checked:
-                refit_ids = ['cp_count', 'smoothness_input', 'continuity_level',
-                             'enforce_te_tangency', 'file_path']
-                update_ids = ['te_thickness', 'import_raw', 'rotate_airfoil', 'flip_airfoil', 'chord_line',
+            # Always trigger preview when parameters change (if line and file are selected)
+            if has_selection:
+                refit_ids = ['cp_count_upper', 'cp_count_lower', 'smoothness_input', 'continuity_level',
+                             'enforce_te_tangency', 'file_path', 'chord_line']
+                update_ids = ['te_thickness', 'import_raw', 'rotate_airfoil', 'flip_airfoil',
                              'curvature_comb', 'comb_scale', 'comb_density']
                 if changed_id in refit_ids:
                     state.needs_refit = True
-                    state.needs_preview = True
                 elif changed_id in update_ids:
-                    state.needs_preview = True
-            
-            if changed_id == 'do_preview' and preview_checked:
-                state.needs_preview = True
-                state.needs_refit = True
+                    # For update-only changes, just mark that preview needs refresh
+                    pass  # Preview will be triggered automatically via executePreview
 
         except Exception as e:
             pass

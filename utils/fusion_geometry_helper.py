@@ -3,6 +3,7 @@ import numpy as np
 import os
 import tempfile
 import traceback
+import math
 from utils import dxf_exporter
 
 def create_fusion_spline(sketch, control_points, knots, degree, is_closed=False):
@@ -42,13 +43,22 @@ def create_fusion_spline(sketch, control_points, knots, degree, is_closed=False)
         raise RuntimeError(f"NURBS geometry creation failed: {str(e)}")
 
 def import_splines_via_dxf(sketch, upper_cp, upper_knots, upper_degree, 
-                           lower_cp, lower_knots, lower_degree, is_sharp_te, sketch_name="Fitted Airfoil"):
+                           lower_cp, lower_knots, lower_degree, is_sharp_te, 
+                           chord_start_world, chord_end_world, sketch_name="Fitted Airfoil"):
     """
     Imports splines via a temporary DXF file to ensure they are editable control-point splines.
+    After import, aligns the airfoil with the chord line by moving the leading edge to the
+    chord start point and rotating if needed to align the trailing edge with the chord end point.
     
-    Fusion's DXF import interprets X/Y coordinates relative to the sketch plane,
-    but the mapping varies depending on the plane orientation. We use the sketch's transform
-    to determine the correct axis mapping and apply a correction rotation if needed.
+    Args:
+        sketch: The target sketch for import
+        upper_cp, lower_cp: Control points for upper and lower surfaces
+        upper_knots, lower_knots: Knot vectors
+        upper_degree, lower_degree: Degrees of the splines
+        is_sharp_te: Whether trailing edge is sharp
+        chord_start_world: World coordinates of chord line start point (Point3D)
+        chord_end_world: World coordinates of chord line end point (Point3D)
+        sketch_name: Name for the new sketch
     """
     app = adsk.core.Application.get()
     import_manager = app.importManager
@@ -58,62 +68,10 @@ def import_splines_via_dxf(sketch, upper_cp, upper_knots, upper_degree,
     dxf_path = os.path.join(temp_dir, "fusion_fitter_temp.dxf")
     
     try:
-        # Determine if we need to rotate coordinates for DXF import
-        # Fusion's DXF import maps DXF X/Y to the sketch plane's X/Y axes
-        # but modelToSketchSpace may return coordinates in a different orientation
-        # depending on which world plane the sketch is on.
-        #
-        # We detect this by checking the sketch's transform matrix to see how
-        # the sketch's local axes map to world axes.
-        
-        sketch_transform = sketch.transform
-        
-        # Extract the sketch's X and Y axis directions in world space
-        # The transform matrix columns 0 and 1 give us the X and Y axis directions
-        sketch_x_world = adsk.core.Vector3D.create(
-            sketch_transform.getCell(0, 0),
-            sketch_transform.getCell(1, 0),
-            sketch_transform.getCell(2, 0)
-        )
-        sketch_y_world = adsk.core.Vector3D.create(
-            sketch_transform.getCell(0, 1),
-            sketch_transform.getCell(1, 1),
-            sketch_transform.getCell(2, 1)
-        )
-        sketch_z_world = adsk.core.Vector3D.create(
-            sketch_transform.getCell(0, 2),
-            sketch_transform.getCell(1, 2),
-            sketch_transform.getCell(2, 2)
-        )
-        
-        
-        # Check if the sketch normal is aligned with world X-axis (YZ plane case)
-        # YZ plane has normal pointing along X axis
-        world_x = adsk.core.Vector3D.create(1, 0, 0)
-        dot_normal_with_world_x = abs(sketch_z_world.dotProduct(world_x))
-        
-        # If sketch normal is aligned with world X (dot product close to 1), 
-        # we're on the YZ plane and need rotation correction
-        needs_rotation = dot_normal_with_world_x > 0.9
-        
-        if needs_rotation:
-            # Apply 90-degree counter-clockwise rotation for YZ plane correction
-            # This swaps coordinates: (x, y) -> (-y, x)
-            rotation_matrix = np.array([
-                [0, -1, 0],
-                [1,  0, 0],
-                [0,  0, 1]
-            ])
-            rotated_upper = np.dot(upper_cp, rotation_matrix)
-            rotated_lower = np.dot(lower_cp, rotation_matrix)
-        else:
-            rotated_upper = upper_cp
-            rotated_lower = lower_cp
-        
-        # Generate DXF content
+        # Generate DXF content without any pre-rotation
         doc = dxf_exporter.export_transformed_bspline_to_dxf(
-            rotated_upper, upper_knots, upper_degree,
-            rotated_lower, lower_knots, lower_degree,
+            upper_cp, upper_knots, upper_degree,
+            lower_cp, lower_knots, lower_degree,
             is_sharp_te, lambda msg: None
         )
         
@@ -149,7 +107,6 @@ def import_splines_via_dxf(sketch, upper_cp, upper_knots, upper_degree,
             new_sketch.name = sketch_name
             
             # Show the control polygon for all imported splines
-            # Splines are in sketchFittedSplines or sketchFixedSplines
             for spline in new_sketch.sketchCurves.sketchFittedSplines:
                 try:
                     spline.isControlPolygonVisible = True
@@ -160,6 +117,12 @@ def import_splines_via_dxf(sketch, upper_cp, upper_knots, upper_degree,
                     spline.isControlPolygonVisible = True
                 except:
                     pass
+            
+            _align_airfoil_with_chord(new_sketch, chord_start_world, chord_end_world)
+        else:
+            # If no new sketch was created, log a warning
+            app = adsk.core.Application.get()
+            app.log(f"Warning: DXF import did not create a new sketch. Expected {count_before + 1}, got {sketches.count}")
         
         # Clean up temp file
         if os.path.exists(dxf_path):
@@ -171,3 +134,105 @@ def import_splines_via_dxf(sketch, upper_cp, upper_knots, upper_degree,
             try: os.remove(dxf_path)
             except: pass
         raise RuntimeError(f"DXF import failed: {str(e)}\n{traceback.format_exc()}")
+
+
+def _align_airfoil_with_chord(sketch, chord_start_world, chord_end_world):
+    """
+    Aligns the imported airfoil with the chord line by:
+    1. Moving the leading edge to the chord start point
+    2. Rotating if needed to align the trailing edge with the chord end point
+    
+    This function should always be called after DXF import, regardless of rotation state.
+    
+    Args:
+        sketch: The sketch containing the imported airfoil splines
+        chord_start_world: World coordinates of chord line start point (Point3D)
+        chord_end_world: World coordinates of chord line end point (Point3D)
+    """
+    try:
+        app = adsk.core.Application.get()
+        app.log(f"Aligning airfoil with chord line. Chord start: {chord_start_world}, Chord end: {chord_end_world}")
+        if not sketch:
+            app.log("Warning: Cannot align airfoil - sketch is None")
+            return
+        
+        # Convert chord points to sketch space
+        # Note: modelToSketchSpace converts from world/model coordinates to sketch coordinates
+        chord_start_sketch = sketch.modelToSketchSpace(chord_start_world)
+        chord_end_sketch = sketch.modelToSketchSpace(chord_end_world)
+        
+        # Find all splines and lines in the sketch (for trailing edge connector, etc.)
+        all_splines = []
+        for i in range(sketch.sketchCurves.sketchControlPointSplines.count):
+            try:
+                spline = sketch.sketchCurves.sketchControlPointSplines.item(i)
+                all_splines.append(spline)
+            except Exception as e:
+                app = adsk.core.Application.get()
+                app.log(f"Error getting spline {i}: {e}")
+            
+        # Also get any lines (e.g., trailing edge connector for blunt TE)
+        all_lines = []
+        for line in sketch.sketchCurves.sketchLines:
+            all_lines.append(line)
+        
+        if len(all_splines) < 2:
+            return  # Need at least upper and lower splines
+        
+        # Get the leading edge point from the first spline's start point
+        # The leading edge is where both upper and lower surfaces meet (start of upper spline)
+        le_spline = all_splines[0]
+        le_sketch_point = le_spline.startSketchPoint
+        le_point_sketch = le_sketch_point.geometry
+        
+        # Find trailing edge - get end points from both splines
+        # For sharp TE, both end at same point. For blunt TE, take midpoint
+        te_points_sketch = []
+        for spline in all_splines:
+            te_sketch_point = spline.endSketchPoint
+            te_points_sketch.append(te_sketch_point.geometry)
+        
+        # Use midpoint of trailing edge points
+        if len(te_points_sketch) >= 2:
+            te_point_sketch = adsk.core.Point3D.create(
+                (te_points_sketch[0].x + te_points_sketch[1].x) / 2.0,
+                (te_points_sketch[0].y + te_points_sketch[1].y) / 2.0,
+                (te_points_sketch[0].z + te_points_sketch[1].z) / 2.0
+            )
+        else:
+            te_point_sketch = te_points_sketch[0]
+
+        le_vec = adsk.core.Vector3D.create(
+            le_point_sketch.x - chord_start_sketch.x,
+            le_point_sketch.y - chord_start_sketch.y,
+            le_point_sketch.z - chord_start_sketch.z
+        )
+        if le_vec.length < 1e-10:
+            return
+        
+        entities = adsk.core.ObjectCollection.create()
+        for spline in all_splines:
+            entities.add(spline)
+        for line in all_lines:
+            entities.add(line)
+        try:                
+            # Define the rotation transform (90 degrees counterclockwise around origin)
+            # Create a matrix for 90-degree rotation in the XY plane
+            transform = adsk.core.Matrix3D.create()
+            origin = adsk.core.Point3D.create(0, 0, 0)
+            zAxis = adsk.core.Vector3D.create(0, 0, 1)
+            transform.setToRotation(-math.pi / 2, zAxis, origin)  # 90 degrees = π/2 radians
+            sketch.move(entities, transform)
+            
+        except Exception as e:
+            app = adsk.core.Application.get()
+            app.log(f"Error moving spline {spline.name}: {e}")
+
+        
+    except Exception as e:
+        # Log error but don't fail the import
+        # Make sure we log the full error trace to help debug issues
+        app = adsk.core.Application.get()
+        error_msg = f"Error in _align_airfoil_with_chord: {str(e)}\n{traceback.format_exc()}"
+        app.log(error_msg)
+        # Re-raise to see if there's a pattern, but for now just log it

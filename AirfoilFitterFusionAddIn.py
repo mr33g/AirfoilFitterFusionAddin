@@ -71,6 +71,13 @@ def run(context):
     try:
         app = adsk.core.Application.get()
         ui  = app.userInterface
+        # import debugpy
+        # if not debugpy.is_client_connected():
+        #     try:
+        #         debugpy.listen(('localhost', 5678), in_process_debug_adapter=True)
+        #         ui.messageBox('Debug server ready on port 5678.\nAttach VSCode now, then click OK.')
+        #     except Exception as e:
+        #         ui.messageBox(f'Debug setup warning: {str(e)}\nContinuing anyway...')        
         
         if not ensure_dependencies():
             return
