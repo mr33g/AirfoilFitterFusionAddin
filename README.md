@@ -8,17 +8,17 @@ A Fusion 360 add-in that imports airfoil coordinate data from `.dat` files and f
 
 Two MSI installer variants are available:
 
+#### Clean Version
+- **File**: `AirfoilFitterFusion.msi`
+- **Includes**: Only the add-in code, no bundled dependencies
+- **Size**: Smaller (~1 MB)
+- **Requirements**: The Add-in will attempt to install the required dependencies in the add-in folder on first run. Fusion needs to be restarted after installation is complete.
+
 #### Bundled Version
-- **File**: `AirfoilFitterFusionAddInSetup-Bundled.msi`
+- **File**: `AirfoilFitterFusion-bundled.msi`
 - **Includes**: All required Python dependencies (numpy, scipy, ezdxf) bundled in the installer
 - **Use when**: Local dependency installation fails
 - **Size**: Larger (~50+ MB) due to bundled libraries
-
-#### Standalone Version
-- **File**: `AirfoilFitterFusionAddInSetup-Standalone.msi`
-- **Includes**: Only the add-in code, no bundled dependencies
-- **Size**: Smaller (~1 MB)
-- **Requirements**: You'll need to install dependencies if they're not already available. The add-in will prompt you on first run if dependencies are missing.
 
 
 ### Option 2: Manual Installation
@@ -89,7 +89,7 @@ The add-in requires the following Python packages:
 
 **Bundled installer**: These dependencies are included and automatically installed.
 
-**Standalone installer or manual installation**: If the dependencies are missing from the `lib/` folder, the add-in will prompt to install them automatically on first run. You can also install them manually (see Troubleshooting section).
+**Automatic or manual installation**: If the dependencies are missing from the `lib/` folder, the add-in will prompt to install them automatically on first run. You can also install them manually (see Troubleshooting section).
 
 ## File Format Support
 

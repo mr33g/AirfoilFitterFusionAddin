@@ -20,6 +20,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
+      - name: Extract Version from Tag
+        id: version
+        run: |
+          $ref = "${{ github.ref }}"
+          if ($ref -match '^refs/tags/v(.+)$') {
+            # Extract version from tag (e.g., v1.2.3 -> 1.2.3)
+            $version = $matches[1]
+            # Ensure WiX version format (major.minor.patch.build)
+            # If version has only 3 parts, add .0 for build number
+            $parts = $version -split '\.'
+            if ($parts.Length -eq 3) {
+              $version = "$version.0"
+            }
+            $versionNoBuild = ($version -split '\.')[0..2] -join '.'
+            Write-Output "VERSION=$version" >> $env:GITHUB_ENV
+            Write-Output "VERSION_NO_BUILD=$versionNoBuild" >> $env:GITHUB_ENV
+            Write-Output "Extracted version: $version"
+          } else {
+            # Default version for non-tag builds
+            Write-Output "VERSION=1.0.0.0" >> $env:GITHUB_ENV
+            Write-Output "VERSION_NO_BUILD=1.0.0" >> $env:GITHUB_ENV
+            Write-Output "Using default version: 1.0.0.0"
+          }
+        shell: pwsh
+      
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -38,31 +63,138 @@ jobs:
         with:
           python-version: '3.12'
       
-      - name: Generate WiX file fragment (Bundled)
-        working-directory: setup
-        run: python generate_wxs_fragment.py --output Files.wxs
-      
-      - name: Build MSI Installer (Bundled)
+      - name: Build Bundled Installer
         working-directory: setup
         run: |
-          wix build AirfoilFitterFusionAddIn.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusionAddInSetup-Bundled.msi
+          # Create staging directory
+          $stagingDir = "$env:TEMP\AirfoilFitterFusion-staging-$((Get-Random))"
+          Write-Host "Creating staging directory: $stagingDir"
+          if (Test-Path $stagingDir) { Remove-Item -Recurse -Force $stagingDir }
+          New-Item -ItemType Directory -Path $stagingDir | Out-Null
+          
+          try {
+            # Copy source files to staging (excluding lib, setup, .git, etc.)
+            Write-Host "Copying source files to staging..."
+            python stage_for_build.py ".." $stagingDir
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to copy source files to staging"
+            }
+            
+            # Create lib directory
+            New-Item -ItemType Directory -Path "$stagingDir\lib" -Force | Out-Null
+            
+            # Install dependencies to staging/lib
+            Write-Host "Installing Python dependencies..."
+            python -m pip install --target "$stagingDir\lib" -r "..\requirements.txt" --quiet --no-warn-script-location
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to install dependencies"
+            }
+            
+            # Generate WiX fragment from staging directory
+            Write-Host "Generating WiX fragment..."
+            python generate_wxs_fragment.py --source-dir $stagingDir --output Files-bundled.wxs
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to generate WiX fragment"
+            }
+            
+            # Build MSI installer
+            Write-Host "Building MSI installer..."
+            $ref = "${{ github.ref }}"
+            $version = "${{ env.VERSION }}"
+            $versionNoBuild = "${{ env.VERSION_NO_BUILD }}"
+            if ($ref -match '^refs/tags/v') {
+              $outputFile = "AirfoilFitterFusion-bundled-$versionNoBuild.msi"
+            } else {
+              $outputFile = "AirfoilFitterFusion-bundled.msi"
+            }
+            wix build AirfoilFitterFusion.wxs Files-bundled.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -d Version=$version -o $outputFile
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to build MSI installer"
+            }
+          } finally {
+            # Clean up staging directory
+            Write-Host "Cleaning up staging directory..."
+            if (Test-Path $stagingDir) { Remove-Item -Recurse -Force $stagingDir }
+          }
+        shell: pwsh
       
-      - name: Generate WiX file fragment (Standalone)
-        working-directory: setup
-        run: python generate_wxs_fragment.py --exclude-lib --output Files-Standalone.wxs
-      
-      - name: Build MSI Installer (Standalone)
+      - name: Build Installer
         working-directory: setup
         run: |
-          wix build AirfoilFitterFusionAddIn-Standalone.wxs Files-Standalone.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusionAddInSetup-Standalone.msi
+          # Create staging directory
+          $stagingDir = "$env:TEMP\AirfoilFitterFusion-staging-$((Get-Random))"
+          Write-Host "Creating staging directory: $stagingDir"
+          if (Test-Path $stagingDir) { Remove-Item -Recurse -Force $stagingDir }
+          New-Item -ItemType Directory -Path $stagingDir | Out-Null
+          
+          try {
+            # Copy source files to staging (excluding lib, setup, .git, etc.)
+            Write-Host "Copying source files to staging..."
+            python stage_for_build.py ".." $stagingDir
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to copy source files to staging"
+            }
+            
+            # Note: NOT installing lib folder for standalone version
+            
+            # Generate WiX fragment from staging directory (excluding lib)
+            Write-Host "Generating WiX fragment..."
+            python generate_wxs_fragment.py --source-dir $stagingDir --exclude-lib --output Files.wxs
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to generate WiX fragment"
+            }
+            
+            # Build MSI installer
+            Write-Host "Building MSI installer..."
+            $ref = "${{ github.ref }}"
+            $version = "${{ env.VERSION }}"
+            $versionNoBuild = "${{ env.VERSION_NO_BUILD }}"
+            if ($ref -match '^refs/tags/v') {
+              $outputFile = "AirfoilFitterFusion-$versionNoBuild.msi"
+            } else {
+              $outputFile = "AirfoilFitterFusion.msi"
+            }
+            wix build AirfoilFitterFusion.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -d Version=$version -o $outputFile
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to build MSI installer"
+            }
+          } finally {
+            # Clean up staging directory
+            Write-Host "Cleaning up staging directory..."
+            if (Test-Path $stagingDir) { Remove-Item -Recurse -Force $stagingDir }
+          }
+        shell: pwsh
       
-      - name: Upload MSI Artifacts
+      - name: Upload Bundled Installer Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AirfoilFitterFusionAddIn-Installers
-          path: |
-            setup/AirfoilFitterFusionAddInSetup-Bundled.msi
-            setup/AirfoilFitterFusionAddInSetup-Standalone.msi
+          name: AirfoilFitterFusion-bundled-installer
+          path: setup/AirfoilFitterFusion-bundled*.msi
+          if-no-files-found: error
+      
+      - name: Upload Installer Artifact
+        working-directory: setup
+        run: |
+          $ref = "${{ github.ref }}"
+          $versionNoBuild = "${{ env.VERSION_NO_BUILD }}"
+          if ($ref -match '^refs/tags/v') {
+            $standaloneFile = "AirfoilFitterFusion-$versionNoBuild.msi"
+          } else {
+            $standaloneFile = "AirfoilFitterFusion.msi"
+          }
+          
+          if (-not (Test-Path $standaloneFile)) {
+            Write-Error "Standalone installer file not found: $standaloneFile"
+            exit 1
+          }
+          Write-Output "STANDALONE_FILE=$standaloneFile" >> $env:GITHUB_ENV
+        shell: pwsh
+      
+      - name: Upload Installer Artifact File
+        uses: actions/upload-artifact@v4
+        with:
+          name: AirfoilFitterFusion-installer
+          path: setup/${{ env.STANDALONE_FILE }}
           if-no-files-found: error
       
       # Upload to GitHub Releases when a tag is pushed
@@ -71,8 +203,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            setup/AirfoilFitterFusionAddInSetup-Bundled.msi
-            setup/AirfoilFitterFusionAddInSetup-Standalone.msi
+            setup/AirfoilFitterFusion-bundled-${{ env.VERSION_NO_BUILD }}.msi
+            setup/AirfoilFitterFusion-${{ env.VERSION_NO_BUILD }}.msi
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

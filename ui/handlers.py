@@ -128,7 +128,6 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
                     state.fit_cache = {}
                     state.current_cp_count_upper = None
                     state.current_cp_count_lower = None
-                    state.bspline_processor = None
                     
                     # Trigger preview update when file is selected (if line is also selected)
                     line_select = inputs.itemById('chord_line')

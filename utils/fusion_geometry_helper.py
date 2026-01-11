@@ -150,8 +150,6 @@ def _align_airfoil_with_chord(sketch, chord_start_world, chord_end_world):
         chord_end_world: World coordinates of chord line end point (Point3D)
     """
     try:
-        app = adsk.core.Application.get()
-        app.log(f"Aligning airfoil with chord line. Chord start: {chord_start_world}, Chord end: {chord_end_world}")
         if not sketch:
             app.log("Warning: Cannot align airfoil - sketch is None")
             return
@@ -168,7 +166,6 @@ def _align_airfoil_with_chord(sketch, chord_start_world, chord_end_world):
                 spline = sketch.sketchCurves.sketchControlPointSplines.item(i)
                 all_splines.append(spline)
             except Exception as e:
-                app = adsk.core.Application.get()
                 app.log(f"Error getting spline {i}: {e}")
             
         # Also get any lines (e.g., trailing edge connector for blunt TE)

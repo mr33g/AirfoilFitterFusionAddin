@@ -125,17 +125,15 @@ def run_fitter(inputs, is_preview):
                 return False
             
             # Determine operation type based on state
-            is_initial_fit = (state.current_cp_count_upper is None and state.current_cp_count_lower is None or 
-                            state.bspline_processor is None or 
-                            not state.bspline_processor.is_fitted())
+            is_initial_fit = (state.current_cp_count_upper is None and state.current_cp_count_lower is None)
 
             cp_count_upper = config.DEFAULT_CP_COUNT if is_initial_fit else state.current_cp_count_upper
             cp_count_lower = config.DEFAULT_CP_COUNT if is_initial_fit else state.current_cp_count_lower
 
-            
+            bspline = BSplineProcessor()
+                
             if is_initial_fit:
                 # Initial fit: use fit_bspline with actual UI values
-                bspline = BSplineProcessor()
                 bspline.smoothing_weight = smoothness
                 
                 success = bspline.fit_bspline(
@@ -152,13 +150,11 @@ def run_fitter(inputs, is_preview):
                     return False
                 
                 # Store processor and CP count in state
-                state.bspline_processor = bspline
                 state.current_cp_count_upper = cp_count_upper
                 state.current_cp_count_lower = cp_count_lower
                 
             else:
                 # Refinement: add or remove control points
-                bspline = state.bspline_processor
                 bspline.smoothing_weight = smoothness
                 bspline.enforce_g2 = enforce_g2
                 bspline.enforce_g3 = enforce_g3 if enforce_g2 else False

@@ -667,12 +667,6 @@ class BSplineProcessor:
             return False
         
         try:
-            # Save backups to allow remove_te_thickening to restore
-            self._backup_upper_control_points = self.upper_control_points.copy()
-            self._backup_lower_control_points = self.lower_control_points.copy()
-            self._backup_upper_knot_vector = None if self.upper_knot_vector is None else self.upper_knot_vector.copy()
-            self._backup_lower_knot_vector = None if self.lower_knot_vector is None else self.lower_knot_vector.copy()
-
             # Sample both curves densely in parameter domain
             if self.upper_curve is None or self.lower_curve is None:
                 return False

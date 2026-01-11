@@ -39,7 +39,7 @@ build-bundled.bat
 python generate_wxs_fragment.py --output Files.wxs
 
 # 2. Build the MSI
-wix build AirfoilFitterFusionAddIn.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusionAddInSetup-Bundled.msi
+wix build AirfoilFitterFusionAddIn.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusion-bundled.msi
 ```
 
 ### Option 2: Standalone Installer (without libraries)
@@ -57,7 +57,7 @@ build-standalone.bat
 python generate_wxs_fragment.py --exclude-lib --output Files-Standalone.wxs
 
 # 2. Build the MSI
-wix build AirfoilFitterFusionAddIn-Standalone.wxs Files-Standalone.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusionAddInSetup-Standalone.msi
+wix build AirfoilFitterFusionAddIn-Standalone.wxs Files-Standalone.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusion.msi
 ```
 
 ### Building Both

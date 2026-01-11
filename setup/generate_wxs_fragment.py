@@ -59,12 +59,24 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
         directory_id_root: Root directory ID
         exclude_lib: If True, exclude the 'lib' directory from the installer
     """
+    # Calculate relative path from setup folder (where output_file is) to source_dir
+    setup_dir = os.path.dirname(os.path.abspath(output_file))
+    source_dir_abs = os.path.abspath(source_dir)
+    try:
+        source_dir_rel = os.path.relpath(source_dir_abs, setup_dir).replace(os.sep, '/')
+        # Ensure we have at least "./" prefix if in same directory
+        if not source_dir_rel.startswith('..') and not source_dir_rel.startswith('.'):
+            source_dir_rel = f"./{source_dir_rel}"
+    except ValueError:
+        # On Windows, if drives differ, use absolute path
+        source_dir_rel = source_dir_abs.replace(os.sep, '/')
+    
     # Build excluded directories list
     excluded_dirs = BASE_EXCLUDED_DIRS.copy()
     if exclude_lib:
         excluded_dirs.add('lib')
     
-    # Use the WiX v4+ namespace
+    # Use the WiX v4+ namespace (include util if we need RemoveFolderEx)
     root = ET.Element("Wix", xmlns="http://wixtoolset.org/schemas/v4/wxs")
     fragment = ET.SubElement(root, "Fragment")
     
@@ -76,16 +88,21 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
     
     # 1. Define Directory Structure
     # We walk once to collect all directories (including __pycache__ for cleanup purposes)
+    # Use a separate walk that doesn't skip __pycache__ to ensure we catch all of them
     for dirpath, dirnames, filenames in os.walk(source_dir):
         rel_path = os.path.relpath(dirpath, source_dir)
         
-        # Skip fully excluded directories (but NOT __pycache__ - we need those for cleanup)
+        # Check if this is a __pycache__ directory - we need to track these for cleanup
+        if os.path.basename(dirpath) == '__pycache__':
+            pycache_dirs.add(rel_path)
+            pycache_id = make_id("DIR", rel_path)
+            dir_map[rel_path] = pycache_id
+            # Don't descend into __pycache__ directories (they shouldn't have nested ones)
+            dirnames[:] = []
+            continue
+        
+        # Skip fully excluded directories (but we've already handled __pycache__ above)
         if should_exclude_dir(dirpath, source_dir, excluded_dirs):
-            # Check if this is a __pycache__ directory - we need to track these for cleanup
-            if os.path.basename(dirpath) == '__pycache__':
-                pycache_dirs.add(rel_path)
-                dir_id = make_id("DIR", rel_path)
-                dir_map[rel_path] = dir_id
             continue
             
         # Prune excluded directories from walk (but still record __pycache__ paths above)
@@ -155,15 +172,36 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
                                 Value="1", 
                                 Action="write")
             
-            # File entry - path relative to setup folder (one level up)
+            # File entry - path relative to setup folder
+            file_source_path = f"{source_dir_rel}/{rel_file_path.replace(os.sep, '/')}"
+            # Normalize path separators and remove any double slashes
+            file_source_path = file_source_path.replace('\\', '/').replace('//', '/')
             ET.SubElement(comp, "File", 
                           Id=file_id, 
-                          Source=f"../{rel_file_path.replace(os.sep, '/')}", 
+                          Source=file_source_path, 
                           KeyPath="yes")
             
             file_count += 1
     
     # 2b. Add RemoveFolder components for each directory to ensure clean uninstall
+    if "lib" not in dir_map:
+        lib_dir_id = make_id("DIR", "lib")
+        dir_map["lib"] = lib_dir_id
+    if "lib" not in dirs_needing_cleanup:
+        dirs_needing_cleanup.add("lib")
+    
+    if not exclude_lib:
+        for pycache_path in list(pycache_dirs):
+            if pycache_path.startswith("lib" + os.sep) or pycache_path.startswith("lib/"):
+                parts = pycache_path.split(os.sep) if os.sep in pycache_path else pycache_path.split("/")
+                for i in range(1, len(parts)):
+                    parent_path = os.sep.join(parts[:i])
+                    if parent_path and parent_path not in dir_map:
+                        parent_id = make_id("DIR", parent_path)
+                        dir_map[parent_path] = parent_id
+                    if parent_path and parent_path not in dirs_needing_cleanup:
+                        dirs_needing_cleanup.add(parent_path)
+    
     # Sort directories by depth (deepest first) to ensure proper removal order
     sorted_dirs = sorted(dirs_needing_cleanup, key=lambda p: p.count(os.sep), reverse=True)
     
@@ -186,13 +224,28 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
                       Value="1",
                       Action="write")
         
-        # RemoveFolder element to remove directory on uninstall
-        ET.SubElement(remove_comp, "RemoveFolder",
-                      Id=f"RF_{make_id('', rel_path)[-60:]}",  # Ensure ID is unique and within limits
-                      On="uninstall")
+        # Use RemoveFolderEx for all directory cleanup (works for both empty and non-empty folders)
+        util_ns = "http://wixtoolset.org/schemas/v4/wxs/util"
+        ET.register_namespace('util', util_ns)
+        remove_folder_ex = ET.SubElement(remove_comp, f"{{{util_ns}}}RemoveFolderEx")
+        remove_folder_ex.set("Id", f"RF_{make_id('', rel_path)[-60:]}")
+        remove_folder_ex.set("On", "uninstall")
+        remove_folder_ex.set("Property", dir_id)  # Use directory ID as property
     
     # 2c. Add cleanup components for __pycache__ directories (runtime-generated)
     # These directories contain .pyc files created by Python at runtime
+    # First, ensure all parent directories of __pycache__ directories are in dir_map
+    for pycache_path in list(pycache_dirs):
+        # Ensure parent directories are in dir_map
+        parts = pycache_path.split(os.sep) if os.sep in pycache_path else pycache_path.split("/")
+        for i in range(1, len(parts)):
+            parent_path = os.sep.join(parts[:i])
+            if parent_path and parent_path not in dir_map:
+                parent_id = make_id("DIR", parent_path)
+                dir_map[parent_path] = parent_id
+            if parent_path and parent_path not in dirs_needing_cleanup:
+                dirs_needing_cleanup.add(parent_path)
+    
     for pycache_path in sorted(pycache_dirs):
         pycache_dir_id = dir_map.get(pycache_path)
         if not pycache_dir_id:
@@ -227,16 +280,33 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
                       Name="*.pyo",
                       On="uninstall")
         
-        # RemoveFolder to remove the __pycache__ directory itself
-        ET.SubElement(cleanup_comp, "RemoveFolder",
-                      Id=f"RMD_pyc_{make_id('', pycache_path)[-50:]}",
-                      On="uninstall")
+        # RemoveFolderEx to remove the __pycache__ directory itself (works for non-empty directories)
+        util_ns = "http://wixtoolset.org/schemas/v4/wxs/util"
+        ET.register_namespace('util', util_ns)
+        remove_folder_ex = ET.SubElement(cleanup_comp, f"{{{util_ns}}}RemoveFolderEx")
+        remove_folder_ex.set("Id", f"RMD_pyc_{make_id('', pycache_path)[-50:]}")
+        remove_folder_ex.set("On", "uninstall")
+        remove_folder_ex.set("Property", pycache_dir_id)  # Use directory ID as property
 
     # 3. Define the directory structure in another fragment
+    # First, ensure all parent directories are in dir_map (needed for proper directory structure)
+    all_paths = list(dir_map.keys())
+    for rel_path in all_paths:
+        if rel_path in [".", ""]:
+            continue
+        parts = rel_path.split(os.sep) if os.sep in rel_path else rel_path.split("/")
+        for i in range(1, len(parts)):
+            parent_path = os.sep.join(parts[:i])
+            if parent_path and parent_path not in dir_map:
+                parent_id = make_id("DIR", parent_path)
+                dir_map[parent_path] = parent_id
+    
     dir_fragment = ET.SubElement(root, "Fragment")
     
     # WiX v4+ uses Directory elements nested inside DirectoryRef
-    for rel_path, dir_id in dir_map.items():
+    # Sort by depth to ensure parents are defined before children
+    sorted_dir_items = sorted(dir_map.items(), key=lambda x: x[0].count(os.sep) if os.sep in x[0] else x[0].count("/"))
+    for rel_path, dir_id in sorted_dir_items:
         if rel_path in [".", ""]:
             continue
         
@@ -247,9 +317,24 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
         ET.SubElement(p_ref, "Directory", Id=dir_id, Name=os.path.basename(rel_path))
 
     # Write XML
-    xml_str = minidom.parseString(ET.tostring(root)).toprettyxml(indent="    ")
+    # Always register util namespace since we use RemoveFolderEx for all cleanup
+    util_ns_uri = "http://wixtoolset.org/schemas/v4/wxs/util"
+    ET.register_namespace('util', util_ns_uri)
+    
+    xml_str = ET.tostring(root, encoding='unicode')
+    
+    # Always add util namespace declaration since we use RemoveFolderEx
+    if util_ns_uri in xml_str:
+        # Replace the Wix opening tag to include util namespace
+        xml_str = xml_str.replace('<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">',
+                                  '<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">')
+        # Replace fully qualified namespace URI with prefix
+        xml_str = xml_str.replace(f'{{{util_ns_uri}}}', 'util:')
+    
+    # Parse and pretty-print
+    xml_dom = minidom.parseString(xml_str)
     with open(output_file, "w", encoding="utf-8") as f:
-        f.write(xml_str)
+        f.write(xml_dom.toprettyxml(indent="    "))
     
     variant = "without lib" if exclude_lib else "with lib"
     print(f"Generated {output_file} (WiX v4+) with {file_count} files ({variant}).")
@@ -260,10 +345,12 @@ if __name__ == "__main__":
                         help='Exclude the lib directory from the installer (for standalone version)')
     parser.add_argument('--output', default='Files.wxs',
                         help='Output file name (default: Files.wxs)')
+    parser.add_argument('--source-dir', default='..',
+                        help='Source directory to scan for files (default: ..)')
     args = parser.parse_args()
     
     generate_wxs_fragment(
-        source_dir="..",
+        source_dir=args.source_dir,
         output_file=args.output,
         component_group_id="HarvestedAddInFiles",
         directory_id_root="ContentsFolder",
