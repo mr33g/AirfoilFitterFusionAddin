@@ -7,33 +7,49 @@ from logic import state
 from logic.fitter import run_fitter
 from core import config
 
-def reset_fitter_settings_to_defaults(inputs):
-    """Reset all fitter settings to their default values. Preserves import settings."""
+def update_cp_count_labels(inputs):
+    """Update the labels for CP count controls with current values."""
     try:
-        # Reset control point counts
         cp_count_upper = inputs.itemById('cp_count_upper')
         if cp_count_upper:
-            cp_count_upper.value = config.DEFAULT_CP_COUNT
+            current_count = state.current_cp_count_upper if state.current_cp_count_upper is not None else config.DEFAULT_CP_COUNT
+            cp_count_upper.text = f'  {current_count}'
         
         cp_count_lower = inputs.itemById('cp_count_lower')
         if cp_count_lower:
-            cp_count_lower.value = config.DEFAULT_CP_COUNT
+            current_count = state.current_cp_count_lower if state.current_cp_count_lower is not None else config.DEFAULT_CP_COUNT
+            cp_count_lower.text = f'  {current_count}'
+    except Exception as e:
+        pass
+
+def reset_fitter_settings_to_defaults(inputs, resetAll=False):
+    """Reset all fitter settings to their default values. Preserves import settings."""
+    try:
+        # Reset control point counts in state (these are stored in state, not in the UI controls)
+        state.fit_cache = {}
+        state.preview_graphics = None
+        state.current_cp_count_upper = None
+        state.current_cp_count_lower = None
         
-        # Reset smoothness penalty
-        smoothness = inputs.itemById('smoothness_input')
-        if smoothness:
-            smoothness.valueOne = config.DEFAULT_SMOOTHNESS_PENALTY
+        # Update labels to show default values
+        update_cp_count_labels(inputs)  
         
-        # Reset continuity level to G1 (first item)
-        continuity_dropdown = inputs.itemById('continuity_level')
-        if continuity_dropdown:
-            for i in range(continuity_dropdown.listItems.count):
-                continuity_dropdown.listItems.item(i).isSelected = (i == 0)
-        
-        # Reset TE tangency enforcement
-        enforce_te_tangent = inputs.itemById('enforce_te_tangency')
-        if enforce_te_tangent:
-            enforce_te_tangent.value = False
+        if resetAll:
+            # Reset soothness penalty
+            smoothness = inputs.itemById('smoothness_input')
+            if smoothness:
+                smoothness.valueOne = config.DEFAULT_SMOOTHNESS_PENALTY
+            
+            # Reset continuity level to G1 (first item)
+            continuity_dropdown = inputs.itemById('continuity_level')
+            if continuity_dropdown:
+                for i in range(continuity_dropdown.listItems.count):
+                    continuity_dropdown.listItems.item(i).isSelected = (i == 0)
+            
+            # Reset TE tangency enforcement
+            enforce_te_tangent = inputs.itemById('enforce_te_tangency')
+            if enforce_te_tangent:
+                enforce_te_tangent.value = False
     except Exception as e:
         pass
 
@@ -124,22 +140,21 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
                     state.fit_cache = {}
                 
                 # Correct CP count values before triggering refit
-                if changed_id in ['cp_count_upper', 'cp_count_lower']:
-                    cp_upper = inputs.itemById('cp_count_upper')
-                    cp_lower = inputs.itemById('cp_count_lower')
-                    if cp_upper and cp_upper.value < 4:
-                        cp_upper.value = 4
-                    if cp_lower and cp_lower.value < 4:
-                        cp_lower.value = 4
-                
+                if changed_id =='cp_count_upper' and state.current_cp_count_upper is not None:
+                    state.current_cp_count_upper = state.current_cp_count_upper + 1
+                    update_cp_count_labels(inputs)
+                elif changed_id =='cp_count_lower' and state.current_cp_count_lower is not None:
+                    state.current_cp_count_lower = state.current_cp_count_lower + 1
+                    update_cp_count_labels(inputs)
+
                 state.needs_refit = True
             elif changed_id == 'rotate_airfoil':
                 state.rotation_state = (state.rotation_state + 1) % 4
             
             elif changed_id == 'flip_airfoil':
                 state.flip_orientation = not state.flip_orientation
-            
             elif changed_id == 'curvature_comb':
+            
                 # Show/hide comb settings based on checkbox
                 comb_checked = inputs.itemById('curvature_comb').value
                 comb_scale_item = inputs.itemById('comb_scale')
@@ -149,6 +164,9 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
                 if comb_density_item:
                     comb_density_item.isVisible = comb_checked
             
+            elif changed_id == 'reset_button':
+                reset_fitter_settings_to_defaults(inputs, False)
+                state.needs_refit = True
             
             chord_line_input = inputs.itemById('chord_line')
             file_path_input = inputs.itemById('file_path')
@@ -157,7 +175,7 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
             toggle_ids = ['cp_count_upper', 'cp_count_lower', 'te_thickness', 'smoothness_input', 'continuity_level',
                           'enforce_te_tangency', 'import_raw', 
                           'rotate_airfoil', 'flip_airfoil', 'curvature_comb', 
-                          'comb_scale', 'comb_density', 'editable_splines', 'fitter_settings', 'import_settings']
+                          'comb_scale', 'comb_density', 'editable_splines', 'fitter_settings', 'import_settings', 'reset_button']
             
             for input_id in toggle_ids:
                 item = inputs.itemById(input_id)
@@ -238,6 +256,8 @@ class FusionFitterCommandExecutePreviewHandler(adsk.core.CommandEventHandler):
         try:
             event_args = adsk.core.CommandEventArgs.cast(args)
             run_fitter(event_args.command.commandInputs, True)
+            # Update labels after fit completes (counts may have changed)
+            update_cp_count_labels(event_args.command.commandInputs)
         except Exception as e:
             pass
 

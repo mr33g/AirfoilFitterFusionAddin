@@ -100,10 +100,7 @@ def run_fitter(inputs, is_preview):
             file_path = inputs.itemById('file_path').value
             if not file_path or not os.path.exists(file_path):
                 return False
-                
-            cp_count_upper = inputs.itemById('cp_count_upper').value
-            cp_count_lower = inputs.itemById('cp_count_lower').value
-            
+
             # Get continuity level from dropdown
             continuity_dropdown = inputs.itemById('continuity_level')
             enforce_g2 = False
@@ -131,6 +128,10 @@ def run_fitter(inputs, is_preview):
             is_initial_fit = (state.current_cp_count_upper is None and state.current_cp_count_lower is None or 
                             state.bspline_processor is None or 
                             not state.bspline_processor.is_fitted())
+
+            cp_count_upper = config.DEFAULT_CP_COUNT if is_initial_fit else state.current_cp_count_upper
+            cp_count_lower = config.DEFAULT_CP_COUNT if is_initial_fit else state.current_cp_count_lower
+
             
             if is_initial_fit:
                 # Initial fit: use fit_bspline with actual UI values
