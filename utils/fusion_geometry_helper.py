@@ -69,14 +69,22 @@ def import_splines_via_dxf(sketch, upper_cp, upper_knots, upper_degree,
     
     try:
         # Generate DXF content without any pre-rotation
+        error_log = []
+        def log_error(msg):
+            error_log.append(msg)
+            app.log(msg)
+        
         doc = dxf_exporter.export_transformed_bspline_to_dxf(
             upper_cp, upper_knots, upper_degree,
             lower_cp, lower_knots, lower_degree,
-            is_sharp_te, lambda msg: None
+            is_sharp_te, log_error
         )
         
         if not doc:
-            raise RuntimeError("Failed to create DXF document")
+            error_msg = "Failed to create DXF document"
+            if error_log:
+                error_msg += f": {'; '.join(error_log)}"
+            raise RuntimeError(error_msg)
             
         doc.saveas(dxf_path)
         
@@ -150,6 +158,7 @@ def _align_airfoil_with_chord(sketch, chord_start_world, chord_end_world):
         chord_end_world: World coordinates of chord line end point (Point3D)
     """
     try:
+        app = adsk.core.Application.get()
         if not sketch:
             app.log("Warning: Cannot align airfoil - sketch is None")
             return
@@ -175,55 +184,235 @@ def _align_airfoil_with_chord(sketch, chord_start_world, chord_end_world):
         
         if len(all_splines) < 2:
             return  # Need at least upper and lower splines
-        
-        # Get the leading edge point from the first spline's start point
-        # The leading edge is where both upper and lower surfaces meet (start of upper spline)
-        le_spline = all_splines[0]
-        le_sketch_point = le_spline.startSketchPoint
-        le_point_sketch = le_sketch_point.geometry
-        
-        # Find trailing edge - get end points from both splines
-        # For sharp TE, both end at same point. For blunt TE, take midpoint
-        te_points_sketch = []
-        for spline in all_splines:
-            te_sketch_point = spline.endSketchPoint
-            te_points_sketch.append(te_sketch_point.geometry)
-        
-        # Use midpoint of trailing edge points
-        if len(te_points_sketch) >= 2:
-            te_point_sketch = adsk.core.Point3D.create(
-                (te_points_sketch[0].x + te_points_sketch[1].x) / 2.0,
-                (te_points_sketch[0].y + te_points_sketch[1].y) / 2.0,
-                (te_points_sketch[0].z + te_points_sketch[1].z) / 2.0
-            )
-        else:
-            te_point_sketch = te_points_sketch[0]
 
-        le_vec = adsk.core.Vector3D.create(
-            le_point_sketch.x - chord_start_sketch.x,
-            le_point_sketch.y - chord_start_sketch.y,
-            le_point_sketch.z - chord_start_sketch.z
-        )
-        if le_vec.length < 1e-10:
+        # app.log(f"Chord start at ({chord_start_sketch.x:.2f}, {chord_start_sketch.y:.2f})")
+        # app.log(f"Chord end at ({chord_end_sketch.x:.2f}, {chord_end_sketch.y:.2f})")
+
+        # Determine which end is LE by checking control point 0 location
+        # In airfoil space, CP[0] is always at the LE (x=0)
+        # Check if the first control point is at the start or end of the spline
+        first_spline = all_splines[0]
+
+        # Access first control point - controlPoints is iterable
+        cp0 = None
+        for i, cp in enumerate(first_spline.controlPoints):
+            if i == 0:
+                cp0 = cp
+                break
+
+        if not cp0:
+            app.log("Warning: Could not access control point 0")
             return
-        
+
+        cp0_geometry = cp0.geometry
+
+        # Compare CP[0] with start and end sketch points
+        dist_cp0_to_start = cp0_geometry.distanceTo(first_spline.startSketchPoint.geometry)
+        dist_cp0_to_end = cp0_geometry.distanceTo(first_spline.endSketchPoint.geometry)
+
+        # app.log(f"CP[0] at ({cp0_geometry.x:.2f}, {cp0_geometry.y:.2f})")
+        # app.log(f"CP[0] distance to start: {dist_cp0_to_start:.4f}, to end: {dist_cp0_to_end:.4f}")
+
+        # Get start and end points from all splines for midpoint calculation
+        start_points = []
+        end_points = []
+        for spline in all_splines:
+            start_points.append(spline.startSketchPoint.geometry)
+            end_points.append(spline.endSketchPoint.geometry)
+
+        start_midpoint = adsk.core.Point3D.create(
+            sum(p.x for p in start_points) / len(start_points),
+            sum(p.y for p in start_points) / len(start_points),
+            sum(p.z for p in start_points) / len(start_points)
+        )
+        end_midpoint = adsk.core.Point3D.create(
+            sum(p.x for p in end_points) / len(end_points),
+            sum(p.y for p in end_points) / len(end_points),
+            sum(p.z for p in end_points) / len(end_points)
+        )
+
+        # CP[0] is at the LE, so if it's closer to start, then start is LE
+        if dist_cp0_to_start < dist_cp0_to_end:
+            le_point_sketch = start_midpoint
+            te_point_sketch = end_midpoint
+            # app.log("CP[0] is at start -> Start is LE")
+        else:
+            le_point_sketch = end_midpoint
+            te_point_sketch = start_midpoint
+            # app.log("CP[0] is at end -> End is LE")
+
+        # Calculate the imported airfoil's LE-to-TE vector (its current orientation)
+        imported_airfoil_vec = adsk.core.Vector3D.create(
+            te_point_sketch.x - le_point_sketch.x,
+            te_point_sketch.y - le_point_sketch.y,
+            te_point_sketch.z - le_point_sketch.z
+        )
+
+        # Calculate the desired chord vector (target orientation)
+        chord_vec_sketch = adsk.core.Vector3D.create(
+            chord_end_sketch.x - chord_start_sketch.x,
+            chord_end_sketch.y - chord_start_sketch.y,
+            chord_end_sketch.z - chord_start_sketch.z
+        )
+
+        # Check if vectors are valid
+        if imported_airfoil_vec.length < 1e-10 or chord_vec_sketch.length < 1e-10:
+            app.log("Warning: Cannot calculate rotation angle - invalid vectors")
+            return
+
+        # Calculate the angle between the imported airfoil vector and the chord vector
+        # Use atan2 for proper quadrant handling
+        imported_angle = math.atan2(imported_airfoil_vec.y, imported_airfoil_vec.x)
+        chord_angle = math.atan2(chord_vec_sketch.y, chord_vec_sketch.x)
+        rotation_angle = chord_angle - imported_angle
+
+        # Normalize angle to [-π, π]
+        while rotation_angle > math.pi:
+            rotation_angle -= 2 * math.pi
+        while rotation_angle < -math.pi:
+            rotation_angle += 2 * math.pi
+
+        # app.log(f"Imported airfoil angle: {math.degrees(imported_angle):.2f}°")
+        # app.log(f"Target chord angle: {math.degrees(chord_angle):.2f}°")
+        # app.log(f"Rotation needed: {math.degrees(rotation_angle):.2f}°")
+
+        # Build transformation matrix directly
+        # We need to map: le_point_sketch -> chord_start_sketch with the correct rotation
+
+        transform = adsk.core.Matrix3D.create()
+
+        # Calculate rotation components
+        cos_angle = math.cos(rotation_angle)
+        sin_angle = math.sin(rotation_angle)
+
+        # Build the 2D rotation + translation matrix directly
+        # For a point (x, y), the transformation is:
+        # x' = cos(θ)(x - le_x) - sin(θ)(y - le_y) + chord_start_x
+        # y' = sin(θ)(x - le_x) + cos(θ)(y - le_y) + chord_start_y
+
+        # This can be written as a 4x4 homogeneous transformation matrix:
+        # [ cos -sin  0  tx ]
+        # [ sin  cos  0  ty ]
+        # [  0    0   1  0  ]
+        # [  0    0   0  1  ]
+        # where tx and ty include both the rotation offset and final translation
+
+        # Translation components that include rotation center offset
+        tx = chord_start_sketch.x - (cos_angle * le_point_sketch.x - sin_angle * le_point_sketch.y)
+        ty = chord_start_sketch.y - (sin_angle * le_point_sketch.x + cos_angle * le_point_sketch.y)
+
+        # Set matrix components (row, column)
+        transform.setCell(0, 0, cos_angle)
+        transform.setCell(0, 1, -sin_angle)
+        transform.setCell(0, 3, tx)
+
+        transform.setCell(1, 0, sin_angle)
+        transform.setCell(1, 1, cos_angle)
+        transform.setCell(1, 3, ty)
+
+        transform.setCell(2, 2, 1.0)  # Z remains unchanged
+        transform.setCell(3, 3, 1.0)  # Homogeneous coordinate
+
+        # app.log(f"Applying single transformation: rotate {math.degrees(rotation_angle):.2f}° + translate to chord start")
+
+        # Apply the combined transformation in one operation
         entities = adsk.core.ObjectCollection.create()
         for spline in all_splines:
             entities.add(spline)
         for line in all_lines:
             entities.add(line)
-        try:                
-            # Define the rotation transform (90 degrees counterclockwise around origin)
-            # Create a matrix for 90-degree rotation in the XY plane
-            transform = adsk.core.Matrix3D.create()
-            origin = adsk.core.Point3D.create(0, 0, 0)
-            zAxis = adsk.core.Vector3D.create(0, 0, 1)
-            transform.setToRotation(-math.pi / 2, zAxis, origin)  # 90 degrees = π/2 radians
+
+        try:
             sketch.move(entities, transform)
-            
+
+            # Verification: Check if alignment is correct after rotation and translation
+            # Re-collect endpoint positions after transformation
+            start_points_after = []
+            end_points_after = []
+            for spline in all_splines:
+                start_points_after.append(spline.startSketchPoint.geometry)
+                end_points_after.append(spline.endSketchPoint.geometry)
+
+            start_midpoint_after = adsk.core.Point3D.create(
+                sum(p.x for p in start_points_after) / len(start_points_after),
+                sum(p.y for p in start_points_after) / len(start_points_after),
+                sum(p.z for p in start_points_after) / len(start_points_after)
+            )
+            end_midpoint_after = adsk.core.Point3D.create(
+                sum(p.x for p in end_points_after) / len(end_points_after),
+                sum(p.y for p in end_points_after) / len(end_points_after),
+                sum(p.z for p in end_points_after) / len(end_points_after)
+            )
+
+            # app.log(f"After rotation+translation:")
+            # app.log(f"  Start midpoint at ({start_midpoint_after.x:.2f}, {start_midpoint_after.y:.2f})")
+            # app.log(f"  End midpoint at ({end_midpoint_after.x:.2f}, {end_midpoint_after.y:.2f})")
+            # app.log(f"  Chord start at ({chord_start_sketch.x:.2f}, {chord_start_sketch.y:.2f})")
+            # app.log(f"  Chord end at ({chord_end_sketch.x:.2f}, {chord_end_sketch.y:.2f})")
+
+            # Re-identify which end is LE after rotation (should be closer to chord start)
+            dist_start_to_chord_start = start_midpoint_after.distanceTo(chord_start_sketch)
+            dist_end_to_chord_start = end_midpoint_after.distanceTo(chord_start_sketch)
+            dist_start_to_chord_end = start_midpoint_after.distanceTo(chord_end_sketch)
+            dist_end_to_chord_end = end_midpoint_after.distanceTo(chord_end_sketch)
+
+            # app.log(f"  Start to chord start: {dist_start_to_chord_start:.4f}, to chord end: {dist_start_to_chord_end:.4f}")
+            # app.log(f"  End to chord start: {dist_end_to_chord_start:.4f}, to chord end: {dist_end_to_chord_end:.4f}")
+
+            # Determine which end is currently closer to chord start (that's the current LE position)
+            if dist_start_to_chord_start < dist_end_to_chord_start:
+                current_le = start_midpoint_after
+                current_te = end_midpoint_after
+                # app.log(f"  Current LE is at start midpoint")
+            else:
+                current_le = end_midpoint_after
+                current_te = start_midpoint_after
+                # app.log(f"  Current LE is at end midpoint")
+
+            # Check if LE is closer to chord end than chord start - that means it's backwards
+            dist_le_to_chord_start = current_le.distanceTo(chord_start_sketch)
+            dist_le_to_chord_end = current_le.distanceTo(chord_end_sketch)
+
+            # app.log(f"  LE to chord start: {dist_le_to_chord_start:.4f}, to chord end: {dist_le_to_chord_end:.4f}")
+
+            # If LE is closer to chord end, airfoil is backwards
+            if dist_le_to_chord_end < dist_le_to_chord_start:
+                # app.log("Verification failed: Airfoil is backwards (LE closer to chord end), applying 180° correction")
+                correction_transform = adsk.core.Matrix3D.create()
+                zAxis = adsk.core.Vector3D.create(0, 0, 1)
+                # Rotate 180 degrees around the chord midpoint
+                chord_midpoint = adsk.core.Point3D.create(
+                    (chord_start_sketch.x + chord_end_sketch.x) / 2.0,
+                    (chord_start_sketch.y + chord_end_sketch.y) / 2.0,
+                    (chord_start_sketch.z + chord_end_sketch.z) / 2.0
+                )
+                correction_transform.setToRotation(math.pi, zAxis, chord_midpoint)
+                sketch.move(entities, correction_transform)
+
+                # # Log final positions after correction
+                # start_points_final = []
+                # end_points_final = []
+                # for spline in all_splines:
+                #     start_points_final.append(spline.startSketchPoint.geometry)
+                #     end_points_final.append(spline.endSketchPoint.geometry)
+                # start_midpoint_final = adsk.core.Point3D.create(
+                #     sum(p.x for p in start_points_final) / len(start_points_final),
+                #     sum(p.y for p in start_points_final) / len(start_points_final),
+                #     sum(p.z for p in start_points_final) / len(start_points_final)
+                # )
+                # end_midpoint_final = adsk.core.Point3D.create(
+                #     sum(p.x for p in end_points_final) / len(end_points_final),
+                #     sum(p.y for p in end_points_final) / len(end_points_final),
+                #     sum(p.z for p in end_points_final) / len(end_points_final)
+                # )
+                # app.log(f"After 180° correction:")
+                # app.log(f"  Start midpoint at ({start_midpoint_final.x:.2f}, {start_midpoint_final.y:.2f})")
+                # app.log(f"  End midpoint at ({end_midpoint_final.x:.2f}, {end_midpoint_final.y:.2f})")
+            # else:
+                # app.log("Verification passed: Alignment correct")
+
         except Exception as e:
-            app = adsk.core.Application.get()
-            app.log(f"Error moving spline {spline.name}: {e}")
+            app.log(f"Error moving spline: {e}")
 
         
     except Exception as e:
