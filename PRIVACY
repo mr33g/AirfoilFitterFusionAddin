@@ -1,0 +1,32 @@
+# Privacy Policy for Airfoil Fitter Fusion
+
+**Last Updated:** January 13, 2026
+
+## Overview
+Airfoil Fitter Fusion ("the Add-in") is a tool for Autodesk Fusion that helps users fit B-spline curves to airfoil coordinate data. This privacy policy explains how the Add-in handles user data.
+
+## Data Collection
+The Add-in does **not** collect, store, or transmit any personal information or user data to external servers or third parties.
+
+## Local Data Processing
+The Add-in processes data entirely on your local machine:
+- Airfoil coordinate data you provide is processed locally within Fusion 360
+- Temporary files (such as DXF files) are created in your system's temporary directory during operation
+- These temporary files are automatically deleted after use
+- No data leaves your computer
+
+## Data Storage
+The Add-in does not store any user data, settings, or preferences. All processing occurs in memory or in temporary files that are cleaned up automatically.
+
+## Third-Party Services
+The Add-in does not use any third-party services, analytics, or tracking tools.
+
+## User Rights
+Since no personal data is collected or stored, there is no data to access, modify, or delete.
+
+## Changes to This Policy
+We may update this privacy policy from time to time. Any changes will be reflected in the "Last Updated" date at the top of this document.
+
+## Contact
+If you have questions about this privacy policy, please contact:
+m.reeg@hotmail.com
