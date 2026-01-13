@@ -1,6 +1,6 @@
-# Airfoil Fitter Add-In for Fusion 360
+# Airfoil Fitter Add-In for Fusion
 
-A Fusion 360 add-in that imports airfoil coordinate data from `.dat` files and fits optimized B-spline curves to it. The generated splines are aligned to the selected sketch line.  The result maintains smooth curvature and geometric continuity at the leading edge and can be used immediately for lofts, sweeps, and other CAD operations.
+A Fusion add-in that imports airfoil coordinate data from `.dat` files and fits optimized B-spline curves to it. The generated splines are aligned to the selected sketch line.  The result maintains smooth curvature and geometric continuity at the leading edge and can be used immediately for lofts, sweeps, and other CAD operations.
 
 ## Installation
 
@@ -9,13 +9,13 @@ A Fusion 360 add-in that imports airfoil coordinate data from `.dat` files and f
 Two MSI installer variants are available:
 
 #### Clean Version
-- **File**: `AirfoilFitterFusion.msi`
+- **File**: `AirfoilFitterAddin.msi`
 - **Includes**: Only the add-in code, no bundled dependencies
 - **Size**: Smaller (~1 MB)
 - **Requirements**: The Add-in will attempt to install the required dependencies in the add-in folder on first run. Fusion needs to be restarted after installation is complete.
 
 #### Bundled Version
-- **File**: `AirfoilFitterFusion-bundled.msi`
+- **File**: `AirfoilFitterAddin-bundled.msi`
 - **Includes**: All required Python dependencies (numpy, scipy, ezdxf) bundled in the installer
 - **Use when**: Local dependency installation fails
 - **Size**: Larger (~50+ MB) due to bundled libraries
@@ -24,11 +24,11 @@ Two MSI installer variants are available:
 ### Option 2: Manual Installation
 
 1. Download or clone this repository
-2. Copy the `AirfoilFitterFusionAddIn` folder to your Fusion 360 add-ins directory:
-   - **Windows**: `%APPDATA%\Autodesk\Autodesk Fusion 360\API\AddIns\`
-   - **macOS**: `~/Library/Application Support/Autodesk/Autodesk Fusion 360/API/AddIns/`
-3. Restart Fusion 360
-4. Go to **Utilities → Add-Ins → Scripts and Add-Ins** and enable **AirfoilFitterFusionAddIn**
+2. Copy the `AirfoilFitter` folder to your Fusion add-ins directory:
+   - **Windows**: `%APPDATA%\Autodesk\Autodesk Fusion\API\AddIns\`
+   - **macOS**: `~/Library/Application Support/Autodesk/Autodesk Fusion/API/AddIns/`
+3. Restart Fusion
+4. Go to **Utilities → Add-Ins → Scripts and Add-Ins** and enable **AirfoilFitter**
 
 ## Usage
 
@@ -56,7 +56,7 @@ Two MSI installer variants are available:
 - **Automatic normalization**: Coordinates are translated, rotated, and scaled so the leading edge is at origin and chord lies along the X-axis
 
 ### B-Spline Fitting
-- **Single-span Bézier curves**: Uses degree = (control points - 1), creating true Bézier curves without internal knots to ensure compability with Fusion 360. Based on Dev Rajnarayan et al. 2019 (https://arc.aiaa.org/doi/10.2514/6.2018-3949).
+- **Single-span Bézier curves**: Uses degree = (control points - 1), creating true Bézier curves without internal knots to ensure compability with Fusion. Based on Dev Rajnarayan et al. 2019 (https://arc.aiaa.org/doi/10.2514/6.2018-3949).
 - **Adjustable control point count**: 4 to 19 control points per surface (upper/lower fitted independently)
 - **G1 continuity**: Tangent continuity is always enforced at the leading edge between upper and lower surfaces
 - **G2 continuity** (optional): Curvature continuity at the leading edge via constrained optimization
@@ -123,9 +123,9 @@ NACA 2412
 
 ### "Dependencies Missing" on startup
 The add-in will offer to install numpy, scipy, and ezdxf automatically. If this fails:
-1. Locate Fusion 360's Python: typically in the Fusion 360 installation directory
+1. Locate Fusion's Python: typically in the Fusion installation directory
 2. Run: `python -m pip install --target "<addin-path>/lib" numpy scipy ezdxf`
-3. Restart Fusion 360
+3. Restart Fusion
 
 ## License
 

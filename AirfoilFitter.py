@@ -28,7 +28,7 @@ def ensure_dependencies():
 
     ui = adsk.core.Application.get().userInterface
     res = ui.messageBox(
-        "FusionFitter requires external libraries (numpy, scipy, ezdxf).\n\n"
+        "AirfoilFitter requires external libraries (numpy, scipy, ezdxf).\n\n"
         "They were not found in the bundled 'lib' folder.\n"
         "Would you like to attempt a local installation into the add-in folder?",
         "Dependencies Missing",
@@ -53,12 +53,12 @@ def ensure_dependencies():
         pip_cmd = f'"{python_exe}" -m pip install --target "{lib_dir}" numpy scipy ezdxf'
         
         if os.name == 'nt':
-            os.system(f'start "FusionFitter Dependency Installer" cmd /c "{pip_cmd} & pause"')
+            os.system(f'start "AirfoilFitter Dependency Installer" cmd /c "{pip_cmd} & pause"')
             ui.messageBox("Installation has started in a separate window.\n\n"
-                         "Please wait for it to complete, then restart Fusion 360.")
+                         "Please wait for it to complete, then restart Fusion.")
         else:
             subprocess.check_call([python_exe, '-m', 'pip', 'install', '--target', lib_dir, 'numpy', 'scipy', 'ezdxf'])
-            ui.messageBox("Installation complete. Please restart Fusion 360.")
+            ui.messageBox("Installation complete. Please restart Fusion.")
             
         return False
     except Exception as e:
@@ -83,23 +83,23 @@ def run(context):
             return
 
         # Import these here, after dependencies are checked and potentially installed
-        from ui.handlers import FusionFitterCommandCreatedHandler
+        from ui.handlers import AirfoilFitterCommandCreatedHandler
 
         # 1. Create Command Definition
-        cmd_def = ui.commandDefinitions.itemById('FusionFitterCommand')
+        cmd_def = ui.commandDefinitions.itemById('AirfoilFitterCommand')
         if not cmd_def:
             # Use absolute path for resources to be safe
-            resource_path = os.path.join(addin_dir, 'resources', 'FusionFitterCommand')
+            resource_path = os.path.join(addin_dir, 'resources', 'AirfoilFitterCommand')
             cmd_def = ui.commandDefinitions.addButtonDefinition(
-                'FusionFitterCommand', 
+                'AirfoilFitterCommand', 
                 'Insert fitted Airfoil', 
                 'Fit a spline to an airfoil .dat file in Selig or Lednicer format',
                 resource_path
             )
-            toolClip_path = os.path.join(addin_dir, 'resources', 'FusionFitterCommand', 'tooltip.png')
+            toolClip_path = os.path.join(addin_dir, 'resources', 'AirfoilFitterCommand', 'tooltip.png')
             cmd_def.toolClipFilename = toolClip_path
         
-        on_command_created = FusionFitterCommandCreatedHandler()
+        on_command_created = AirfoilFitterCommandCreatedHandler()
         cmd_def.commandCreated.add(on_command_created)
         state.handlers.append(on_command_created)
 
@@ -116,7 +116,7 @@ def run(context):
                     for p_id in panel_ids:
                         panel = tab.toolbarPanels.itemById(p_id)
                         if panel:
-                            existing_control = panel.controls.itemById('FusionFitterCommand')
+                            existing_control = panel.controls.itemById('AirfoilFitterCommand')
                             if not existing_control:
                                 panel.controls.addCommand(cmd_def)
                             break # Found the panel, move to next workspace
@@ -142,12 +142,12 @@ def stop(context):
                     for p_id in panel_ids:
                         panel = tab.toolbarPanels.itemById(p_id)
                         if panel:
-                            control = panel.controls.itemById('FusionFitterCommand')
+                            control = panel.controls.itemById('AirfoilFitterCommand')
                             if control:
                                 control.deleteMe()
 
         # Delete command definition
-        cmd_def = ui.commandDefinitions.itemById('FusionFitterCommand')
+        cmd_def = ui.commandDefinitions.itemById('AirfoilFitterCommand')
         if cmd_def:
             cmd_def.deleteMe()
     except:

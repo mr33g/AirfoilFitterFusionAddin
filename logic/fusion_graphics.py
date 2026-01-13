@@ -1,8 +1,8 @@
 """
-Fusion 360 graphics utilities for airfoil fitting visualization.
+Fusion graphics utilities for airfoil fitting visualization.
 
 This module contains low-level graphics helper functions for transforming vectors,
-computing spline normals, and creating text labels in Fusion 360's coordinate system.
+computing spline normals, and creating text labels in Fusion's coordinate system.
 """
 
 import adsk.core, adsk.fusion

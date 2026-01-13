@@ -1,4 +1,4 @@
-# Global state for the FusionFitter add-in
+# Global state for the AirfoilFitter add-in
 handlers = []
 needs_refit = True
 fit_cache = {}

@@ -6,8 +6,8 @@ from utils.data_loader import load_airfoil_data
 
 class AirfoilProcessor:
     """
-    Acts as a bridge between the Fusion 360 plugin and the core logic.
-    Modified for Fusion 360 to remove Qt dependencies.
+    Acts as a bridge between the Fusion plugin and the core logic.
+    Modified for Fusion to remove Qt dependencies.
     """
 
     def __init__(self, logger_func=print):

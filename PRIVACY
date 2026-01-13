@@ -10,7 +10,7 @@ The Add-in does **not** collect, store, or transmit any personal information or 
 
 ## Local Data Processing
 The Add-in processes data entirely on your local machine:
-- Airfoil coordinate data you provide is processed locally within Fusion 360
+- Airfoil coordinate data you provide is processed locally within Fusion
 - Temporary files (such as DXF files) are created in your system's temporary directory during operation
 - These temporary files are automatically deleted after use
 - No data leaves your computer

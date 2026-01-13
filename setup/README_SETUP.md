@@ -1,6 +1,6 @@
 # MSI Installer Setup (WiX v4+)
 
-This folder contains the files necessary to build a Windows MSI installer for the Airfoil Fitter Fusion 360 Add-in, following Autodesk's recommended `.bundle` structure and the latest **WiX v4+** standards.
+This folder contains the files necessary to build a Windows MSI installer for the Airfoil Fitter Fusion Add-in, following Autodesk's recommended `.bundle` structure and the latest **WiX v4+** standards.
 
 ## Prerequisites
 
@@ -39,7 +39,7 @@ build-bundled.bat
 python generate_wxs_fragment.py --output Files.wxs
 
 # 2. Build the MSI
-wix build AirfoilFitterFusionAddIn.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusion-bundled.msi
+wix build AirfoilFitter.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterAddin-bundled.msi
 ```
 
 ### Option 2: Standalone Installer (without libraries)
@@ -57,7 +57,7 @@ build-standalone.bat
 python generate_wxs_fragment.py --exclude-lib --output Files-Standalone.wxs
 
 # 2. Build the MSI
-wix build AirfoilFitterFusionAddIn-Standalone.wxs Files-Standalone.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusion.msi
+wix build AirfoilFitter-Standalone.wxs Files-Standalone.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterAddin.msi
 ```
 
 ### Building Both
@@ -68,24 +68,27 @@ To build both installers:
 build-bundled.bat
 build-standalone.bat
 ```
-
 The GitHub Actions workflow automatically builds both variants and uploads them to releases.
+
+### Uninstall
+
+To uninstall the add-in run the msi-installer again, or unistall through "Installed Apps". Make sure Fusion is not running, so the installer is able to remove all files! 
 
 ## Autodesk Bundle Structure
 
 The installer is configured to install the add-in to:
-`%AppData%\Autodesk\ApplicationPlugins\AirfoilFitterFusionAddIn.bundle\`
+`%AppData%\Autodesk\ApplicationPlugins\AirfoilFitter.bundle\`
 
-*   **PackageContents.xml**: Located at the root of the `.bundle` folder. It tells Fusion 360 how to load the add-in.
+*   **PackageContents.xml**: Located at the root of the `.bundle` folder. It tells Fusion how to load the add-in.
 *   **Contents/**: Subfolder containing all the actual add-in files and folders (`core`, `lib`, `ui`, etc.).
 
-This structure ensures compatibility with the Autodesk App Store and provides a "clean" installation that Fusion 360 automatically discovers on startup.
+This structure ensures compatibility with the Autodesk App Store and provides a "clean" installation that Fusion automatically discovers on startup.
 
 ## Troubleshooting
 
-If the add-in doesn't show up in Fusion 360:
-1.  Verify the files are at `%AppData%\Autodesk\ApplicationPlugins\AirfoilFitterFusionAddIn.bundle\`.
+If the add-in doesn't show up in Fusion:
+1.  Verify the files are at `%AppData%\Autodesk\ApplicationPlugins\AirfoilFitter.bundle\`.
 2.  Check that `PackageContents.xml` exists in that folder.
-3.  Ensure `Contents/AirfoilFitterFusionAddIn.py` exists relative to that folder.
-4.  Check Fusion 360's "Add-ins" dialog (Shift+S) and look for "AirfoilFitterFusionAddIn" in the list. Verify it is running.
+3.  Ensure `Contents/AirfoilFitter.py` exists relative to that folder.
+4.  Check Fusion's "Add-ins" dialog (Shift+S) and look for "AirfoilFitter" in the list. Verify it is running.
 5.  Check the Text output for error messages.

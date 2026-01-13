@@ -67,7 +67,7 @@ jobs:
         working-directory: setup
         run: |
           # Create staging directory
-          $stagingDir = "$env:TEMP\AirfoilFitterFusion-staging-$((Get-Random))"
+          $stagingDir = "$env:TEMP\AirfoilFitterAddin-staging-$((Get-Random))"
           Write-Host "Creating staging directory: $stagingDir"
           if (Test-Path $stagingDir) { Remove-Item -Recurse -Force $stagingDir }
           New-Item -ItemType Directory -Path $stagingDir | Out-Null
@@ -103,11 +103,11 @@ jobs:
             $version = "${{ env.VERSION }}"
             $versionNoBuild = "${{ env.VERSION_NO_BUILD }}"
             if ($ref -match '^refs/tags/v') {
-              $outputFile = "AirfoilFitterFusion-bundled-$versionNoBuild.msi"
+              $outputFile = "AirfoilFitterAddin-bundled-$versionNoBuild.msi"
             } else {
-              $outputFile = "AirfoilFitterFusion-bundled.msi"
+              $outputFile = "AirfoilFitterAddin-bundled.msi"
             }
-            wix build AirfoilFitterFusion.wxs Files-bundled.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -d Version=$version -o $outputFile
+            wix build AirfoilFitterAddin.wxs Files-bundled.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -d Version=$version -o $outputFile
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to build MSI installer"
             }
@@ -122,7 +122,7 @@ jobs:
         working-directory: setup
         run: |
           # Create staging directory
-          $stagingDir = "$env:TEMP\AirfoilFitterFusion-staging-$((Get-Random))"
+          $stagingDir = "$env:TEMP\AirfoilFitterAddin-staging-$((Get-Random))"
           Write-Host "Creating staging directory: $stagingDir"
           if (Test-Path $stagingDir) { Remove-Item -Recurse -Force $stagingDir }
           New-Item -ItemType Directory -Path $stagingDir | Out-Null
@@ -150,11 +150,11 @@ jobs:
             $version = "${{ env.VERSION }}"
             $versionNoBuild = "${{ env.VERSION_NO_BUILD }}"
             if ($ref -match '^refs/tags/v') {
-              $outputFile = "AirfoilFitterFusion-$versionNoBuild.msi"
+              $outputFile = "AirfoilFitterAddin-$versionNoBuild.msi"
             } else {
-              $outputFile = "AirfoilFitterFusion.msi"
+              $outputFile = "AirfoilFitterAddin.msi"
             }
-            wix build AirfoilFitterFusion.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -d Version=$version -o $outputFile
+            wix build AirfoilFitterAddin.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -d Version=$version -o $outputFile
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to build MSI installer"
             }
@@ -168,8 +168,8 @@ jobs:
       - name: Upload Bundled Installer Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AirfoilFitterFusion-bundled-installer
-          path: setup/AirfoilFitterFusion-bundled*.msi
+          name: AirfoilFitterAddin-bundled-installer
+          path: setup/AirfoilFitterAddin-bundled*.msi
           if-no-files-found: error
       
       - name: Upload Installer Artifact
@@ -178,9 +178,9 @@ jobs:
           $ref = "${{ github.ref }}"
           $versionNoBuild = "${{ env.VERSION_NO_BUILD }}"
           if ($ref -match '^refs/tags/v') {
-            $standaloneFile = "AirfoilFitterFusion-$versionNoBuild.msi"
+            $standaloneFile = "AirfoilFitterAddin-$versionNoBuild.msi"
           } else {
-            $standaloneFile = "AirfoilFitterFusion.msi"
+            $standaloneFile = "AirfoilFitterAddin.msi"
           }
           
           if (-not (Test-Path $standaloneFile)) {
@@ -193,7 +193,7 @@ jobs:
       - name: Upload Installer Artifact File
         uses: actions/upload-artifact@v4
         with:
-          name: AirfoilFitterFusion-installer
+          name: AirfoilFitterAddin-installer
           path: setup/${{ env.STANDALONE_FILE }}
           if-no-files-found: error
       
@@ -203,8 +203,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            setup/AirfoilFitterFusion-bundled-${{ env.VERSION_NO_BUILD }}.msi
-            setup/AirfoilFitterFusion-${{ env.VERSION_NO_BUILD }}.msi
+            setup/AirfoilFitterAddin-bundled-${{ env.VERSION_NO_BUILD }}.msi
+            setup/AirfoilFitterAddin-${{ env.VERSION_NO_BUILD }}.msi
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

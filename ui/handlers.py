@@ -53,7 +53,7 @@ def reset_fitter_settings_to_defaults(inputs, resetAll=False):
     except Exception as e:
         pass
 
-class FusionFitterCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
+class AirfoilFitterCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
     def __init__(self):
         super().__init__()
     def notify(self, args):
@@ -61,19 +61,19 @@ class FusionFitterCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             event_args = adsk.core.CommandCreatedEventArgs.cast(args)
             cmd = event_args.command
             
-            on_execute = FusionFitterCommandExecuteHandler()
+            on_execute = AirfoilFitterCommandExecuteHandler()
             cmd.execute.add(on_execute)
             state.handlers.append(on_execute)
             
-            on_input_changed = FusionFitterCommandInputChangedHandler()
+            on_input_changed = AirfoilFitterCommandInputChangedHandler()
             cmd.inputChanged.add(on_input_changed)
             state.handlers.append(on_input_changed)
             
-            on_execute_preview = FusionFitterCommandExecutePreviewHandler()
+            on_execute_preview = AirfoilFitterCommandExecutePreviewHandler()
             cmd.executePreview.add(on_execute_preview)
             state.handlers.append(on_execute_preview)
             
-            on_destroy = FusionFitterCommandDestroyedHandler()
+            on_destroy = AirfoilFitterCommandDestroyedHandler()
             cmd.destroy.add(on_destroy)
             state.handlers.append(on_destroy)
 
@@ -83,7 +83,7 @@ class FusionFitterCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             app = adsk.core.Application.get()
             app.userInterface.messageBox('Command Created Failed:\n{}'.format(traceback.format_exc()))
 
-class FusionFitterCommandExecuteHandler(adsk.core.CommandEventHandler):
+class AirfoilFitterCommandExecuteHandler(adsk.core.CommandEventHandler):
     def __init__(self):
         super().__init__()
     def notify(self, args):
@@ -94,7 +94,7 @@ class FusionFitterCommandExecuteHandler(adsk.core.CommandEventHandler):
             app = adsk.core.Application.get()
             app.userInterface.messageBox('Execution Error:\n{}'.format(traceback.format_exc()))
 
-class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
+class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
     def __init__(self):
         super().__init__()
     def notify(self, args):
@@ -248,7 +248,7 @@ class FusionFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler)
         except Exception as e:
             pass
 
-class FusionFitterCommandExecutePreviewHandler(adsk.core.CommandEventHandler):
+class AirfoilFitterCommandExecutePreviewHandler(adsk.core.CommandEventHandler):
     def __init__(self):
         super().__init__()
     def notify(self, args):
@@ -260,7 +260,7 @@ class FusionFitterCommandExecutePreviewHandler(adsk.core.CommandEventHandler):
         except Exception as e:
             pass
 
-class FusionFitterCommandDestroyedHandler(adsk.core.CommandEventHandler):
+class AirfoilFitterCommandDestroyedHandler(adsk.core.CommandEventHandler):
     def __init__(self):
         super().__init__()
     def notify(self, args):

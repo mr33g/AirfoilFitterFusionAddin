@@ -166,7 +166,7 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
             # Registry value for per-user install consistency (required by WiX for per-user)
             ET.SubElement(comp, "RegistryValue", 
                                 Root="HKCU", 
-                                Key=f"Software\\AirfoilFitterFusionAddIn\\Files\\{file_id}", 
+                                Key=f"Software\\AirfoilFitter\\Files\\{file_id}", 
                                 Name="installed", 
                                 Type="integer", 
                                 Value="1", 
@@ -218,7 +218,7 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
         # Registry value as KeyPath (required for per-user components)
         ET.SubElement(remove_comp, "RegistryValue",
                       Root="HKCU",
-                      Key=f"Software\\AirfoilFitterFusionAddIn\\Folders\\{remove_comp_id}",
+                      Key=f"Software\\AirfoilFitter\\Folders\\{remove_comp_id}",
                       Name="installed",
                       Type="integer",
                       Value="1",
@@ -262,7 +262,7 @@ def generate_wxs_fragment(source_dir, output_file, component_group_id, directory
         # Registry value as KeyPath (required for per-user components)
         ET.SubElement(cleanup_comp, "RegistryValue",
                       Root="HKCU",
-                      Key=f"Software\\AirfoilFitterFusionAddIn\\Pycache\\{cleanup_comp_id}",
+                      Key=f"Software\\AirfoilFitter\\Pycache\\{cleanup_comp_id}",
                       Name="installed",
                       Type="integer",
                       Value="1",

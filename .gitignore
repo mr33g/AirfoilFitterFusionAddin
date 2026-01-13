@@ -1,9 +1,9 @@
 .vscode/
 *.pyc
-setup/AirfoilFitterFusion.msi
-setup/AirfoilFitterFusion.wixpdb
-setup/AirfoilFitterFusion-bundled.msi
-setup/AirfoilFitterFusion-bundled.wixpdb
+setup/AirfoilFitterAddin.msi
+setup/AirfoilFitterAddin.wixpdb
+setup/AirfoilFitterAddin-bundled.msi
+setup/AirfoilFitterAddin-bundled.wixpdb
 setup/Files-bundled.wxs
 setup/Files.wxs
 lib/

@@ -8,7 +8,7 @@ from utils import dxf_exporter
 
 def create_fusion_spline(sketch, control_points, knots, degree, is_closed=False):
     """
-    Creates a high-accuracy NURBS spline in a Fusion 360 sketch.
+    Creates a high-accuracy NURBS spline in a Fusion sketch.
     Note: These are created as 'Fixed' (read-only) geometry.
     """
     # Use a native Python list of Point3D objects for the API

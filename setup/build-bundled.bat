@@ -13,7 +13,7 @@ set "PROJECT_ROOT=%SETUP_DIR%\.."
 cd /d "%PROJECT_ROOT%"
 
 REM Create temporary staging directory
-set "STAGING_DIR=%TEMP%\AirfoilFitterFusion-staging-%RANDOM%"
+set "STAGING_DIR=%TEMP%\AirfoilFitterAddin-staging-%RANDOM%"
 echo Creating staging directory: %STAGING_DIR%
 if exist "%STAGING_DIR%" rmdir /s /q "%STAGING_DIR%"
 mkdir "%STAGING_DIR%"
@@ -51,7 +51,7 @@ if errorlevel 1 (
 
 REM Build MSI installer
 echo Building MSI installer...
-wix build AirfoilFitterFusion.wxs Files-bundled.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterFusion-bundled.msi
+wix build AirfoilFitterAddin.wxs Files-bundled.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterAddin-bundled.msi
 set BUILD_RESULT=!errorlevel!
 
 REM Clean up staging directory
@@ -64,4 +64,4 @@ if !BUILD_RESULT! neq 0 (
 )
 
 echo.
-echo Bundled installer built successfully: AirfoilFitterFusion-bundled.msi
+echo Bundled installer built successfully: AirfoilFitterAddin-bundled.msi
