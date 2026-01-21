@@ -26,7 +26,6 @@ Two MSI installer variants are available:
 1. Download or clone this repository
 2. Copy the `AirfoilFitter` folder to your Fusion add-ins directory:
    - **Windows**: `%APPDATA%\Autodesk\Autodesk Fusion\API\AddIns\`
-   - **macOS**: `~/Library/Application Support/Autodesk/Autodesk Fusion/API/AddIns/`
 3. Restart Fusion
 4. Go to **Utilities → Add-Ins → Scripts and Add-Ins** and enable **AirfoilFitter**
 
