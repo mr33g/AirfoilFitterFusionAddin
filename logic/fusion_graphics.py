@@ -8,6 +8,7 @@ computing spline normals, and creating text labels in Fusion's coordinate system
 import adsk.core, adsk.fusion
 import numpy as np
 from utils import bspline_helper
+from logic import state
 
 
 def transform_vector_2d_to_world(vec_2d, transform_matrix):
@@ -56,6 +57,9 @@ def compute_spline_normal_world(curve, u_param, airfoil_to_world):
     
     # Transform normal to world coordinates
     normal_world_vec = transform_vector_2d_to_world(normal_airfoil, airfoil_to_world)
+    # Transform to component-local space if needed (direction only, no translation)
+    if state.graphics_world_to_local:
+        normal_world_vec.transformBy(state.graphics_world_to_local)
     normal_world_vec.normalize()
     return normal_world_vec
 

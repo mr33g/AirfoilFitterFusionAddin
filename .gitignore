@@ -1,12 +1,13 @@
 .vscode/
+.claude/
+-github/
 *.pyc
-setup/AirfoilFitterAddin.msi
-setup/AirfoilFitterAddin.wixpdb
-setup/AirfoilFitterAddin-bundled.msi
-setup/AirfoilFitterAddin-bundled.wixpdb
+*.msi
+*.wixpdb
 setup/Files-bundled.wxs
 setup/Files.wxs
 lib/
 doc/
 res/
 out/
+.gitignore

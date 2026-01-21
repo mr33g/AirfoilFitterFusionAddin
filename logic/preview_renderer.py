@@ -17,11 +17,17 @@ _addin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _get_world_pts(cp_list, chord_length, airfoil_to_world):
-    """Convert control points to world coordinates as flat list [x, y, z, x, y, z, ...]"""
+    """Convert control points to graphics coordinates as flat list [x, y, z, x, y, z, ...]
+
+    If graphics are in a sub-component, coordinates are transformed to component-local space.
+    """
     coords = []
     for pt in cp_list:
         p_world = adsk.core.Point3D.create(pt[0] * chord_length, pt[1] * chord_length, 0)
         p_world.transformBy(airfoil_to_world)
+        # Transform to component-local space if needed
+        if state.graphics_world_to_local:
+            p_world.transformBy(state.graphics_world_to_local)
         coords.extend([p_world.x, p_world.y, p_world.z])
     return coords
 
@@ -198,7 +204,11 @@ def draw_curvature_comb(graphics_group, upper_cp, lower_cp, fit_cache,
                 )
                 start_world.transformBy(airfoil_to_world)
                 end_world.transformBy(airfoil_to_world)
-                
+                # Transform to component-local space if needed
+                if state.graphics_world_to_local:
+                    start_world.transformBy(state.graphics_world_to_local)
+                    end_world.transformBy(state.graphics_world_to_local)
+
                 # Add to coordinates for hairs
                 all_coords.extend([start_world.x, start_world.y, start_world.z])
                 all_coords.extend([end_world.x, end_world.y, end_world.z])
@@ -280,8 +290,11 @@ def draw_error_markers(graphics_group, upper_cp, lower_cp, fit_cache,
         0
     )
     p_world_u.transformBy(airfoil_to_world)
+    # Transform to component-local space if needed
+    if state.graphics_world_to_local:
+        p_world_u.transformBy(state.graphics_world_to_local)
     error_points_coords.extend([p_world_u.x, p_world_u.y, p_world_u.z])
-    
+
     # Lower surface max error point (on spline)
     p_world_l = adsk.core.Point3D.create(
         spline_pt_l[0] * chord_length,
@@ -289,6 +302,9 @@ def draw_error_markers(graphics_group, upper_cp, lower_cp, fit_cache,
         0
     )
     p_world_l.transformBy(airfoil_to_world)
+    # Transform to component-local space if needed
+    if state.graphics_world_to_local:
+        p_world_l.transformBy(state.graphics_world_to_local)
     error_points_coords.extend([p_world_l.x, p_world_l.y, p_world_l.z])
     
     # Create CustomGraphicsPointSet
@@ -379,9 +395,17 @@ def render_preview(target_sketch, upper_cp, lower_cp, fit_cache, chord_length,
     u_cp_trans = transform_pts(upper_cp, target_sketch)
     l_cp_trans = transform_pts(lower_cp, target_sketch)
     
-    # Create custom graphics group
-    root = design.rootComponent
-    state.preview_graphics = root.customGraphicsGroups.add()
+    # Create custom graphics group in the sketch's parent component
+    # This prevents dimming when sketch is in a sub-component
+    parent_component = target_sketch.parentComponent
+    state.preview_graphics = parent_component.customGraphicsGroups.add()
+
+    # If sketch is in a sub-component, we need to transform world coordinates
+    # to the component's local space
+    state.graphics_world_to_local = None
+    if target_sketch.assemblyContext:
+        state.graphics_world_to_local = target_sketch.assemblyContext.transform2.copy()
+        state.graphics_world_to_local.invert()
     
     # Draw control polygon
     upper_coords, lower_coords = draw_control_polygon(
