@@ -30,6 +30,14 @@
         <Icon Id="icon.ico" SourceFile="../resources/AirfoilFitterCommand/favicon.ico"/>
         <Property Id="ARPPRODUCTICON" Value="icon.ico" />
 
+        <!-- Properties for RemoveFolderEx - read paths from registry (set during install) -->
+        <Property Id="INSTALLFOLDER_PATH" Secure="yes">
+            <RegistrySearch Id="FindInstallFolder" Root="HKCU" Key="Software\FusionAddins\AirfoilFitter" Name="InstallPath" Type="raw" />
+        </Property>
+        <Property Id="CONTENTSFOLDER_PATH" Secure="yes">
+            <RegistrySearch Id="FindContentsFolder" Root="HKCU" Key="Software\FusionAddins\AirfoilFitter" Name="ContentsPath" Type="raw" />
+        </Property>
+
         <!-- Directory Structure -->
         <StandardDirectory Id="AppDataFolder">
             <Directory Id="AutodeskDir" Name="Autodesk">
@@ -45,13 +53,17 @@
         <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
             <Component Id="PackageContentsXml" Guid="B1C2D3E4-F5A6-7890-ABCD-EF1234567891">
                 <File Id="PackageContents.xml" Source="PackageContents.xml" KeyPath="yes" />
-                <RegistryValue Root="HKCU" Key="Software\MichaelReeg\AirfoilFitter" Name="installed" Type="integer" Value="1" Action="write" />
-                <util:RemoveFolderEx Id="RemoveINSTALLFOLDER" On="uninstall" Property="INSTALLFOLDER" />
+                <RegistryValue Root="HKCU" Key="Software\FusionAddins\AirfoilFitter" Name="installed" Type="integer" Value="1" Action="write" />
+                <!-- Store actual paths in registry for uninstall to find -->
+                <RegistryValue Root="HKCU" Key="Software\FusionAddins\AirfoilFitter" Name="InstallPath" Type="string" Value="[INSTALLFOLDER]" Action="write" />
+                <RegistryValue Root="HKCU" Key="Software\FusionAddins\AirfoilFitter" Name="ContentsPath" Type="string" Value="[ContentsFolder]" Action="write" />
+                <!-- RemoveFolderEx removes the folder and ALL contents including runtime-created files -->
+                <util:RemoveFolderEx Id="RemoveINSTALLFOLDER" On="uninstall" Property="INSTALLFOLDER_PATH" />
             </Component>
             <!-- Remove ContentsFolder on uninstall -->
             <Component Id="ContentsFolderCleanup" Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234567892" Directory="ContentsFolder">
-                <RegistryValue Root="HKCU" Key="Software\MichaelReeg\AirfoilFitter\Folders" Name="ContentsFolder" Type="integer" Value="1" Action="write" KeyPath="yes" />
-                <util:RemoveFolderEx Id="RemoveContentsFolder" On="uninstall" Property="ContentsFolder" />
+                <RegistryValue Root="HKCU" Key="Software\FusionAddins\AirfoilFitter\Folders" Name="ContentsFolder" Type="integer" Value="1" Action="write" KeyPath="yes" />
+                <util:RemoveFolderEx Id="RemoveContentsFolder" On="uninstall" Property="CONTENTSFOLDER_PATH" />
             </Component>
         </ComponentGroup>
 
