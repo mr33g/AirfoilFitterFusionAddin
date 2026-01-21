@@ -56,7 +56,7 @@ def run_fitter(inputs, is_preview):
         sketch = selected_line.parentSketch
         mat = sketch.transform
         if sketch.assemblyContext:
-            mat.transformBy(sketch.assemblyContext.worldTransform)
+            mat.transformBy(sketch.assemblyContext.transform2)
             
         sketch_normal_world = adsk.core.Vector3D.create(mat.getCell(0, 2), mat.getCell(1, 2), mat.getCell(2, 2))
         sketch_normal_world.normalize()
