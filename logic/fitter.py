@@ -353,11 +353,27 @@ def run_fitter(inputs, is_preview):
             if state.rotation_state == 0:
                 target_plane = selected_line.parentSketch.referencePlane
             else:
-                plane_input = parent_comp.constructionPlanes.createInput()
-                plane_input.setByAngle(selected_line, adsk.core.ValueInput.createByReal(-theta), selected_line.parentSketch.referencePlane)
-                target_plane = parent_comp.constructionPlanes.add(plane_input)
-                target_plane.name = sketch_name
-
+                # Check if the rotated plane matches a standard origin plane                                                                                                                  
+                root_comp = design.rootComponent                                                                                                                                              
+                tol = 1e-6                                                                                                                                                                    
+                standard_plane = None                                                                                                                                                         
+                
+                # z_axis_world is the normal of the rotated plane                                                                                                                             
+                if abs(abs(z_axis_world.z) - 1.0) < tol:                                                                                                                                      
+                    standard_plane = root_comp.xYConstructionPlane                                                                                                                            
+                elif abs(abs(z_axis_world.y) - 1.0) < tol:                                                                                                                                    
+                    standard_plane = root_comp.xZConstructionPlane                                                                                                                            
+                elif abs(abs(z_axis_world.x) - 1.0) < tol:                                                                                                                                    
+                    standard_plane = root_comp.yZConstructionPlane                                                                                                                            
+      
+                if standard_plane:                                                                                                                                                            
+                    target_plane = standard_plane                                                                                                                                             
+                else:                                                                                                                                                                         
+                    plane_input = parent_comp.constructionPlanes.createInput()                                                                                                                
+                    plane_input.setByAngle(selected_line, adsk.core.ValueInput.createByReal(-theta), selected_line.parentSketch.referencePlane)                                               
+                    target_plane = parent_comp.constructionPlanes.add(plane_input)                                                                                                            
+                    target_plane.name = sketch_name                                                                                                                                           
+                                                                              
             if is_editable:
                 # Create a temporary sketch on the target plane to use modelToSketchSpace for accurate transformation
                 temp_sketch = parent_comp.sketches.add(target_plane)
