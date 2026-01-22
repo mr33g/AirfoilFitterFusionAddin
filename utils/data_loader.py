@@ -160,9 +160,11 @@ def load_airfoil_data(filename, logger_func=print):
     y_te_lower = lower_surface[-1, 1]
     tol = 1e-8
     thickened = False
-    if not np.isclose(y_te_upper, y_te_lower, atol=tol) and np.isclose(y_te_upper, -y_te_lower, atol=tol):
+    # Calculate TE thickness (normalized to chord length)
+    te_thickness = abs(y_te_upper - y_te_lower)
+    if te_thickness > tol:
         thickened = True
-        logger_func("Trailing edge is thickened and symmetric about y=0.")
+        logger_func(f"Trailing edge is thickened. TE thickness: {te_thickness:.6f} (normalized to chord).")
 
-    return upper_surface, lower_surface, airfoil_name, thickened
+    return upper_surface, lower_surface, airfoil_name, thickened, te_thickness
 

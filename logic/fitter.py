@@ -127,6 +127,12 @@ def run_fitter(inputs, is_preview):
             # Determine operation type based on state
             is_initial_fit = (state.current_cp_count_upper is None and state.current_cp_count_lower is None)
 
+            # Set TE thickness input to match loaded airfoil's existing thickness (on initial load only)
+            if is_initial_fit and processor.get_te_thickness() > 0:
+                te_input = inputs.itemById('te_thickness')
+                if te_input:
+                    te_input.value = processor.get_te_thickness() * chord_length
+
             cp_count_upper = config.DEFAULT_CP_COUNT if is_initial_fit else state.current_cp_count_upper
             cp_count_lower = config.DEFAULT_CP_COUNT if is_initial_fit else state.current_cp_count_lower
 
@@ -279,7 +285,8 @@ def run_fitter(inputs, is_preview):
                 'is_sharp': bspline.is_sharp_te,
                 'err_u': err_u, 'err_l': err_l,
                 'max_err_pt_u': max_err_pt_u, 'max_err_pt_l': max_err_pt_l,  # Store coordinates of max deviation points
-                'raw_upper': processor.upper_data, 'raw_lower': processor.lower_data
+                'raw_upper': processor.upper_data, 'raw_lower': processor.lower_data,
+                'original_te_thickness': processor.get_te_thickness()  # Store original TE thickness (normalized)
             }
 
         # 3. Post-Processing
@@ -287,12 +294,18 @@ def run_fitter(inputs, is_preview):
         upper_cp = state.fit_cache['upper_cp_raw'].copy()
         lower_cp = state.fit_cache['lower_cp_raw'].copy()
         is_sharp = state.fit_cache['is_sharp']
-        
-        if te_thickness > 0:
-            half_thick = 0.5 * (te_thickness / chord_length)
-            upper_cp[:, 1] += half_thick * bspline_helper.smoothstep_quintic(upper_cp[:, 0])
-            lower_cp[:, 1] -= half_thick * bspline_helper.smoothstep_quintic(lower_cp[:, 0])
-            is_sharp = False
+
+        # Calculate thickness delta: desired thickness minus original thickness from input data
+        original_te_thickness = state.fit_cache.get('original_te_thickness', 0.0)
+        desired_thickness_normalized = te_thickness / chord_length
+        thickness_delta = desired_thickness_normalized - original_te_thickness
+
+        if abs(thickness_delta) > 1e-9:
+            half_delta = 0.5 * thickness_delta
+            upper_cp[:, 1] += half_delta * bspline_helper.smoothstep_quintic(upper_cp[:, 0])
+            lower_cp[:, 1] -= half_delta * bspline_helper.smoothstep_quintic(lower_cp[:, 0])
+
+        is_sharp = te_thickness < 1e-9
 
         # 4. Update UI Status
         design = adsk.fusion.Design.cast(app.activeProduct)

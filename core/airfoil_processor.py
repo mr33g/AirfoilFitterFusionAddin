@@ -16,7 +16,8 @@ class AirfoilProcessor:
         self.lower_data = None
         self.upper_te_tangent_vector = None
         self.lower_te_tangent_vector = None
-        self._is_blunt_TE = False # True if original airfoil has thickened TE
+        self._is_blunt_TE = False  # True if original airfoil has thickened TE
+        self._te_thickness = 0.0   # TE thickness normalized to chord length
         self.logger_func = logger_func
         self.airfoil_name = ""
 
@@ -31,13 +32,15 @@ class AirfoilProcessor:
         self.upper_te_tangent_vector = None
         self.lower_te_tangent_vector = None
         self._is_blunt_TE = False
+        self._te_thickness = 0.0
 
         try:
-            upper, lower, airfoil_name, blunt_te = load_airfoil_data(file_path, logger_func=self.logger_func)
+            upper, lower, airfoil_name, blunt_te, te_thickness = load_airfoil_data(file_path, logger_func=self.logger_func)
             self.upper_data = upper
             self.lower_data = lower
             self.airfoil_name = airfoil_name
             self._is_blunt_TE = blunt_te
+            self._te_thickness = te_thickness
             # Recalculate TE tangent vectors using configured default
             te_vector_points = config.DEFAULT_TE_VECTOR_POINTS
             self.upper_te_tangent_vector, self.lower_te_tangent_vector = self._calculate_te_tangent(
@@ -51,6 +54,10 @@ class AirfoilProcessor:
     def is_trailing_edge_thickened(self):
         """Returns True if the loaded airfoil has a thickened trailing edge."""
         return self._is_blunt_TE
+
+    def get_te_thickness(self):
+        """Returns the trailing edge thickness normalized to chord length."""
+        return self._te_thickness
 
     def recalculate_te_vectors(self, te_vector_points):
         """
