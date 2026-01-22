@@ -63,61 +63,6 @@ jobs:
         with:
           python-version: '3.14'
       
-      - name: Build Bundled Installer
-        working-directory: setup
-        run: |
-          # Create staging directory
-          $stagingDir = "$env:TEMP\AirfoilFitterAddin-staging-$((Get-Random))"
-          Write-Host "Creating staging directory: $stagingDir"
-          if (Test-Path $stagingDir) { Remove-Item -Recurse -Force $stagingDir }
-          New-Item -ItemType Directory -Path $stagingDir | Out-Null
-
-          try {
-            # Copy source files to staging (excluding lib, setup, .git, etc.)
-            Write-Host "Copying source files to staging..."
-            python stage_for_build.py ".." $stagingDir
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to copy source files to staging"
-            }
-
-            # Create lib directory
-            New-Item -ItemType Directory -Path "$stagingDir\lib" -Force | Out-Null
-
-            # Install dependencies to staging/lib
-            Write-Host "Installing Python dependencies..."
-            python -m pip install --target "$stagingDir\lib" -r "..\requirements.txt" --quiet --no-warn-script-location
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to install dependencies"
-            }
-
-            # Generate WiX fragment from staging directory
-            Write-Host "Generating WiX fragment..."
-            python generate_wxs_fragment.py --source-dir $stagingDir --output Files-bundled.wxs
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to generate WiX fragment"
-            }
-
-            # Build MSI installer
-            Write-Host "Building MSI installer..."
-            $ref = "${{ github.ref }}"
-            $version = "${{ env.VERSION }}"
-            $versionNoBuild = "${{ env.VERSION_NO_BUILD }}"
-            if ($ref -match '^refs/tags/v') {
-              $outputFile = "AirfoilFitterAddin-bundled-$versionNoBuild.msi"
-            } else {
-              $outputFile = "AirfoilFitterAddin-bundled.msi"
-            }
-            wix build AirfoilFitterAddin.wxs Files-bundled.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -d Version=$version -o $outputFile
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to build MSI installer"
-            }
-          } finally {
-            # Clean up staging directory
-            Write-Host "Cleaning up staging directory..."
-            if (Test-Path $stagingDir) { Remove-Item -Recurse -Force $stagingDir }
-          }
-        shell: pwsh
-
       - name: Build Installer
         working-directory: setup
         run: |
@@ -165,13 +110,6 @@ jobs:
           }
         shell: pwsh
 
-      - name: Upload Bundled Installer Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: AirfoilFitterAddin-bundled-installer
-          path: setup/AirfoilFitterAddin-bundled*.msi
-          if-no-files-found: error
-
       - name: Upload Installer Artifact
         working-directory: setup
         run: |
@@ -202,9 +140,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-release-artifacts
-          path: |
-            setup/AirfoilFitterAddin-bundled-${{ env.VERSION_NO_BUILD }}.msi
-            setup/AirfoilFitterAddin-${{ env.VERSION_NO_BUILD }}.msi
+          path: setup/AirfoilFitterAddin-${{ env.VERSION_NO_BUILD }}.msi
 
   build-macos:
     runs-on: macos-latest
