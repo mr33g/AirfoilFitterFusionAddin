@@ -7,7 +7,7 @@ on:
       - 'v*'
   pull_request:
     branches: [main, master]
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,132 +15,81 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Extract Version from Tag
-        id: version
+        shell: pwsh
         run: |
           $ref = "${{ github.ref }}"
           if ($ref -match '^refs/tags/v(.+)$') {
-            # Extract version from tag (e.g., v1.2.3 -> 1.2.3)
             $version = $matches[1]
-            # Ensure WiX version format (major.minor.patch.build)
-            # If version has only 3 parts, add .0 for build number
             $parts = $version -split '\.'
             if ($parts.Length -eq 3) {
               $version = "$version.0"
             }
             $versionNoBuild = ($version -split '\.')[0..2] -join '.'
-            Write-Output "VERSION=$version" >> $env:GITHUB_ENV
-            Write-Output "VERSION_NO_BUILD=$versionNoBuild" >> $env:GITHUB_ENV
-            Write-Output "Extracted version: $version"
           } else {
-            # Default version for non-tag builds
-            Write-Output "VERSION=1.0.0.0" >> $env:GITHUB_ENV
-            Write-Output "VERSION_NO_BUILD=1.0.0" >> $env:GITHUB_ENV
-            Write-Output "Using default version: 1.0.0.0"
+            $version = "1.0.0.0"
+            $versionNoBuild = "1.0.0"
           }
-        shell: pwsh
-      
+          "VERSION=$version" >> $env:GITHUB_ENV
+          "VERSION_NO_BUILD=$versionNoBuild" >> $env:GITHUB_ENV
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      
-      - name: Install WiX Toolset
+
+      - name: Install WiX
         run: dotnet tool install --global wix
-      
+
       - name: Add WiX Extensions
         run: |
           wix extension add -g WixToolset.UI.wixext
           wix extension add -g WixToolset.Util.wixext
-      
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.14'
-      
-      - name: Build Installer
+
+      - name: Build MSI
         working-directory: setup
+        shell: pwsh
         run: |
-          # Create staging directory
-          $stagingDir = "$env:TEMP\AirfoilFitterAddin-staging-$((Get-Random))"
-          Write-Host "Creating staging directory: $stagingDir"
-          if (Test-Path $stagingDir) { Remove-Item -Recurse -Force $stagingDir }
-          New-Item -ItemType Directory -Path $stagingDir | Out-Null
+          $staging = "$env:TEMP\addin-staging-$((Get-Random))"
+          New-Item -ItemType Directory $staging | Out-Null
 
           try {
-            # Copy source files to staging (excluding lib, setup, .git, etc.)
-            Write-Host "Copying source files to staging..."
-            python stage_for_build.py ".." $stagingDir
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to copy source files to staging"
-            }
+            python stage_for_build.py ".." $staging
+            python generate_wxs_fragment.py --source-dir $staging --exclude-lib --output Files.wxs
 
-            # Note: NOT installing lib folder for standalone version
-
-            # Generate WiX fragment from staging directory (excluding lib)
-            Write-Host "Generating WiX fragment..."
-            python generate_wxs_fragment.py --source-dir $stagingDir --exclude-lib --output Files.wxs
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to generate WiX fragment"
-            }
-
-            # Build MSI installer
-            Write-Host "Building MSI installer..."
-            $ref = "${{ github.ref }}"
-            $version = "${{ env.VERSION }}"
-            $versionNoBuild = "${{ env.VERSION_NO_BUILD }}"
-            if ($ref -match '^refs/tags/v') {
-              $outputFile = "AirfoilFitterAddin-$versionNoBuild.msi"
-            } else {
-              $outputFile = "AirfoilFitterAddin.msi"
-            }
-            wix build AirfoilFitterAddin.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -d Version=$version -o $outputFile
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to build MSI installer"
-            }
+            $out = "AirfoilFitterAddin-${{ env.VERSION_NO_BUILD }}.msi"
+            wix build AirfoilFitterAddin.wxs Files.wxs `
+              -ext WixToolset.UI.wixext `
+              -ext WixToolset.Util.wixext `
+              -d Version=${{ env.VERSION }} `
+              -o $out
           } finally {
-            # Clean up staging directory
-            Write-Host "Cleaning up staging directory..."
-            if (Test-Path $stagingDir) { Remove-Item -Recurse -Force $stagingDir }
+            Remove-Item -Recurse -Force $staging
           }
-        shell: pwsh
 
-      - name: Upload Installer Artifact
-        working-directory: setup
-        run: |
-          $ref = "${{ github.ref }}"
-          $versionNoBuild = "${{ env.VERSION_NO_BUILD }}"
-          if ($ref -match '^refs/tags/v') {
-            $standaloneFile = "AirfoilFitterAddin-$versionNoBuild.msi"
-          } else {
-            $standaloneFile = "AirfoilFitterAddin.msi"
-          }
-          
-          if (-not (Test-Path $standaloneFile)) {
-            Write-Error "Standalone installer file not found: $standaloneFile"
-            exit 1
-          }
-          Write-Output "STANDALONE_FILE=$standaloneFile" >> $env:GITHUB_ENV
-        shell: pwsh
-      
-      - name: Upload Installer Artifact File
+      - name: Upload Windows Artifact (CI)
         uses: actions/upload-artifact@v4
         with:
-          name: AirfoilFitterAddin-installer
-          path: setup/${{ env.STANDALONE_FILE }}
-          if-no-files-found: error
-      
-      - name: Upload Windows Artifacts for Release
+          name: windows-msi
+          path: setup/AirfoilFitterAddin-*.msi
+
+      - name: Upload Windows Release Asset
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
+        uses: softprops/action-gh-release@v2
         with:
-          name: windows-release-artifacts
-          path: setup/AirfoilFitterAddin-${{ env.VERSION_NO_BUILD }}.msi
+          files: setup/AirfoilFitterAddin-${{ env.VERSION_NO_BUILD }}.msi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos:
     runs-on: macos-latest
@@ -150,129 +99,55 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Extract Version from Tag
-        id: version
+        shell: bash
         run: |
           ref="${{ github.ref }}"
           if [[ "$ref" =~ ^refs/tags/v(.+)$ ]]; then
-            version="${BASH_REMATCH[1]}"
-            # Get version without build number (first 3 parts)
-            version_no_build=$(echo "$version" | cut -d. -f1-3)
-            echo "VERSION=$version" >> $GITHUB_ENV
-            echo "VERSION_NO_BUILD=$version_no_build" >> $GITHUB_ENV
-            echo "Extracted version: $version"
+            v="${BASH_REMATCH[1]}"
           else
-            echo "VERSION=1.0.0" >> $GITHUB_ENV
-            echo "VERSION_NO_BUILD=1.0.0" >> $GITHUB_ENV
-            echo "Using default version: 1.0.0"
+            v="1.0.0"
           fi
-        shell: bash
+          echo "VERSION_NO_BUILD=$(echo "$v" | cut -d. -f1-3)" >> $GITHUB_ENV
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.14'
 
-      - name: Build macOS Zip Package
+      - name: Build macOS ZIP
         working-directory: setup
-        run: |
-          # Create staging directory
-          staging_dir=$(mktemp -d)
-          echo "Creating staging directory: $staging_dir"
-
-          # Copy source files to staging (excluding lib, setup, .git, etc.)
-          echo "Copying source files to staging..."
-          python stage_for_build.py ".." "$staging_dir"
-          if [ $? -ne 0 ]; then
-            echo "Failed to copy source files to staging"
-            rm -rf "$staging_dir"
-            exit 1
-          fi
-
-          # Create AirfoilFitter subfolder (required folder name for Fusion)
-          addin_dir="$staging_dir/AirfoilFitter"
-          mkdir -p "$addin_dir"
-
-          # Move staged files into AirfoilFitter folder
-          mv "$staging_dir"/* "$addin_dir/" 2>/dev/null || true
-
-          # Create lib directory
-          mkdir -p "$addin_dir/lib"
-
-          # Install dependencies to lib
-          echo "Installing Python dependencies..."
-          python -m pip install --target "$addin_dir/lib" -r "../requirements.txt" --quiet --no-warn-script-location
-          if [ $? -ne 0 ]; then
-            echo "Failed to install dependencies"
-            rm -rf "$staging_dir"
-            exit 1
-          fi
-
-          # Determine output filename
-          ref="${{ github.ref }}"
-          if [[ "$ref" =~ ^refs/tags/v ]]; then
-            output_file="AirfoilFitterAddin-macos-${{ env.VERSION_NO_BUILD }}.zip"
-          else
-            output_file="AirfoilFitterAddin-macos.zip"
-          fi
-
-          # Create zip package with AirfoilFitter as root folder
-          echo "Creating zip package: $output_file"
-          cd "$staging_dir"
-          zip -r "$OLDPWD/$output_file" AirfoilFitter
-          if [ $? -ne 0 ]; then
-            echo "Failed to create zip package"
-            cd "$OLDPWD"
-            rm -rf "$staging_dir"
-            exit 1
-          fi
-
-          cd "$OLDPWD"
-
-          # Clean up staging directory
-          echo "Cleaning up staging directory..."
-          rm -rf "$staging_dir"
-
-          echo "Successfully created $output_file"
         shell: bash
+        run: |
+          staging="$(mktemp -d)"
+          python stage_for_build.py ".." "$staging"
 
-      - name: Upload macOS Zip Artifact
+          mkdir "$staging/AirfoilFitter"
+          shopt -s dotglob
+          mv "$staging"/* "$staging/AirfoilFitter/" || true
+          shopt -u dotglob
+
+          mkdir -p "$staging/AirfoilFitter/lib"
+          python -m pip install \
+            --target "$staging/AirfoilFitter/lib" \
+            -r ../requirements.txt \
+            --quiet
+
+          out="AirfoilFitterAddin-macos-${{ env.VERSION_NO_BUILD }}.zip"
+          cd "$staging"
+          zip -r "$OLDPWD/$out" AirfoilFitter
+          cd "$OLDPWD"
+          rm -rf "$staging"
+
+      - name: Upload macOS Artifact (CI)
         uses: actions/upload-artifact@v4
         with:
-          name: AirfoilFitterAddin-macos
-          path: setup/AirfoilFitterAddin-macos*.zip
-          if-no-files-found: error
+          name: macos-zip
+          path: setup/AirfoilFitterAddin-macos-*.zip
 
-      - name: Upload macOS Artifact for Release
+      - name: Upload macOS Release Asset
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-release-artifacts
-          path: setup/AirfoilFitterAddin-macos-${{ env.VERSION_NO_BUILD }}.zip
-
-  # Create release after both builds complete
-  release:
-    needs: [build-windows, build-macos]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-
-    steps:
-      - name: Download Windows Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-release-artifacts
-          path: artifacts
-
-      - name: Download macOS Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-release-artifacts
-          path: artifacts
-
-      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*
-          generate_release_notes: true
+          files: setup/AirfoilFitterAddin-macos-${{ env.VERSION_NO_BUILD }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
