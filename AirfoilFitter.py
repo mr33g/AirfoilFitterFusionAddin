@@ -50,14 +50,14 @@ def ensure_dependencies():
             os.makedirs(lib_dir)
 
         # Install directly into the add-in's lib folder
-        pip_cmd = f'"{python_exe}" -m pip install --target "{lib_dir}" --force-reinstall numpy scipy ezdxf'
+        pip_cmd = f'"{python_exe}" -m pip install --upgrade --force-reinstall --target "{lib_dir}" numpy scipy ezdxf'
         
         if os.name == 'nt':
             os.system(f'start "AirfoilFitter Dependency Installer" cmd /c "{pip_cmd} & pause"')
             ui.messageBox("Installation has started in a separate window.\n\n"
                          "Please wait for it to complete, then restart Fusion.")
         else:
-            subprocess.check_call([python_exe, '-m', 'pip', 'install', '--target', lib_dir, '--force-reinstall', 'numpy', 'scipy', 'ezdxf'])
+            subprocess.check_call([python_exe, '-m', 'pip', 'install', '--upgrade', '--force-reinstall', '--target', lib_dir, 'numpy', 'scipy', 'ezdxf'])
             ui.messageBox("Installation complete. Please restart Fusion.")
             
         return False
