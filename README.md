@@ -4,30 +4,29 @@ A Fusion add-in that imports airfoil coordinate data from `.dat` files and fits 
 
 ## Installation
 
-### Option 1: MSI Installer (Windows)
+### MSI Installer (Windows)
 
-Two MSI installer variants are available:
-
-#### Clean Version
 - **File**: `AirfoilFitterAddin.msi`
-- **Includes**: Only the add-in code, no bundled dependencies
-- **Size**: Smaller (~1 MB)
-- **Requirements**: The Add-in will attempt to install the required dependencies in the add-in folder on first run. Fusion needs to be restarted after installation is complete.
+1. Close Fusion
+2. Download & run the installer
+3. Start Fusion & confirm dependency installation
+4. Restart Fusion
 
-#### Bundled Version
-- **File**: `AirfoilFitterAddin-bundled.msi`
-- **Includes**: All required Python dependencies (numpy, scipy, ezdxf) bundled in the installer
-- **Use when**: Local dependency installation fails
-- **Size**: Larger (~50+ MB) due to bundled libraries
-
-
-### Option 2: Manual Installation
+### Manual Installation (Windows)
 
 1. Download or clone this repository
 2. Copy the `AirfoilFitter` folder to your Fusion add-ins directory:
    - **Windows**: `%APPDATA%\Autodesk\Autodesk Fusion\API\AddIns\`
-3. Restart Fusion
-4. Go to **Utilities → Add-Ins → Scripts and Add-Ins** and enable **AirfoilFitter**
+3. Go to **Utilities → Add-Ins → Scripts and Add-Ins** and enable **AirfoilFitter**
+4. Confirm dependency installation
+5. Restart Fusion
+
+### Manual Installation (MacOS)
+
+1. Download & extract the bundled MacOS Package
+2. Move the "AirfoilFitter" folder to `~/Library/Application Support/Autodesk/Autodesk Fusion 360/API/AddIns/`
+3. Register & run the Add-in in Fusions Script and Add-In Manager (Shift + S)
+4. Dependencies can't be updated automatically. Check for a new release if the Add-in stops working after a Fusion update
 
 ## Usage
 
@@ -38,14 +37,15 @@ Two MSI installer variants are available:
 5. **Adjust fitting parameters**:
    - **Control Point Count**: More points = higher accuracy but might introduce oscillations, fewer = smoother curves
    - **Smoothness Penalty**: Higher values produce smoother control polygons at the cost of accuracy
-   - **G2/G3**: Enable for curvature continuity at the leading edge
+   - **G2/G3**: Enable for curvature continuity at the leading edge, G1 is recommended
    - **Enforce TE Tangency**: Match trailing edge tangent direction from original data
 6. **Position the airfoil**:
    - Use **Rotate 90°** to orient the airfoil plane relative to the chord line
    - Use **Flip** to reverse nose/tail direction
-   - Use **TE Thickness** manipulator to add trailing edge thickness
+   - Use **TE Thickness** manipulator to adjust trailing edge thickness
    - Preview is automatically displayed when both chord line and file are selected
-7. **Enable Editable** if you need to modify control points after insertion
+7. **Enable Adjustable** if you need to modify control points after insertion
+8. **Curvature Comb** analyze the airfoils curvature in the preview
 8. **Click OK** to insert the final geometry
 
 ## Features
@@ -71,8 +71,8 @@ Two MSI installer variants are available:
 - **Trailing edge thickness**: Add symmetric trailing edge thickness with minimal distortion of the airfoil.
 
 ### Output Options
-- **Editable splines** (experimental): Create geometry via DXF import to create control-point splines that can be edited in Fusion
-- **Fixed splines**: Create read-only NURBS curves directly through the API
+- **Editable splines** (experimental): Creates geometry via DXF import to create control-point splines that can be edited in Fusion
+- **Fixed splines**: Creates read-only splines directly through the Fusion-API
 - **Live preview**: Preview is automatically shown when both chord line and airfoil file are selected
 - **Show input data**: Optionally display the original airfoil coordinate points for comparison
 
@@ -86,9 +86,9 @@ The add-in requires the following Python packages:
 - `scipy`  
 - `ezdxf`
 
-**Bundled installer**: These dependencies are included and automatically installed.
+**Bundled package for MacOS**: These dependencies are included and automatically installed.
 
-**Automatic or manual installation**: If the dependencies are missing from the `lib/` folder, the add-in will prompt to install them automatically on first run. You can also install them manually (see Troubleshooting section).
+**Automatic or manual installation (Windows only)**: If the dependencies are missing from the `lib/` folder, the add-in will prompt to install them automatically on first run. You can also install them manually (see Troubleshooting section).
 
 ## File Format Support
 
@@ -121,10 +121,20 @@ NACA 2412
 ## Troubleshooting
 
 ### "Dependencies Missing" on startup
+
 The add-in will offer to install numpy, scipy, and ezdxf automatically. If this fails:
-1. Locate Fusion's Python: typically in the Fusion installation directory
-2. Run: `python -m pip install --target "<addin-path>/lib" numpy scipy ezdxf`
+
+**Windows**
+1. Locate Fusion's Python: typically in the Fusion installation directory and open a terminal there
+2. Run: `python -m pip install --force-reinstall --target "<addin-path>/lib" numpy scipy ezdxf` in that terminal
 3. Restart Fusion
+
+**MacOS**
+1. Identify what version of Python is used by Fusion
+2. If the Python version bundled with MacOS matches, you can proceed to step 4
+3. Manually install the required Python version
+4. Install the dependencies to the Add-In folder: `python<python-version> -m pip install --force-reinstall --target "<addin-path>/lib" numpy scipy ezdxf`
+5. Restart Fusion
 
 ## License
 
@@ -134,7 +144,36 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 Michael Reeg
 
-## Version History
+## Changelog
 
-- **1.0.0**: Initial release
+### v1.1.2 (2026-01-23)
+- Experimental bundle for MacOS
+- Removed bundled installer for Windows
+- Improved handling of thickened trailing edges
+- Avoid creation of unnecessary planes
+- Fix dependency updates
+- README updates
 
+### v1.1.1 (2026-01-21)
+- Fixed DXF import alignment
+- Fixed sub-component bug
+- Added privacy policy
+- Fixed the installer
+
+### v1.1.0 (2026-01-11)
+- Added curvature comb visualization
+- Separate control point count controls for upper/lower surfaces
+- Improved knot insertion algorithm
+- New error display
+- UI improvements
+- Improved error handling and stage management
+
+### v1.0.2 (2026-01-03)
+- Optional static libs support
+
+### v1.0.1 (2026-01-03)
+- Fixed installer progress dialogs
+- Deinstaller now removes all files
+
+### v1.0 (2026-01-01)
+- Initial release
