@@ -146,6 +146,9 @@ Michael Reeg
 
 ## Changelog
 
+## Unreleased
+- Fixed deinstall on drives other than c:
+
 ### v1.1.2 (2026-01-23)
 - Experimental bundle for MacOS
 - Removed bundled installer for Windows

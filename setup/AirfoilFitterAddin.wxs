@@ -13,6 +13,11 @@
         <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
         <MediaTemplate EmbedCab="yes" />
 
+        <!-- Disable rollback to avoid Windows permission issues with \config.msi on non-C: drives -->
+        <InstallExecuteSequence>
+            <DisableRollback After="InstallInitialize" />
+        </InstallExecuteSequence>
+
         <!-- Simple UI -->
         <ui:WixUI Id="WixUI_Minimal" />
         <UIRef Id="WixUI_ErrorProgressText" />
