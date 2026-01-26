@@ -96,6 +96,10 @@ def run_fitter(inputs, is_preview):
         if is_preview:
             state.needs_refit = False
 
+        # Save previous TE state before potential refit (for edge case: CP change after TE adjustment)
+        prev_te_applied = state.fit_cache.get('te_applied', False) if state.fit_cache else False
+        prev_te_value = state.fit_cache.get('te_value', 0.0) if state.fit_cache else 0.0
+
         if do_new_fit:
             file_path = inputs.itemById('file_path').value
             if not file_path or not os.path.exists(file_path):
@@ -286,26 +290,64 @@ def run_fitter(inputs, is_preview):
                 'err_u': err_u, 'err_l': err_l,
                 'max_err_pt_u': max_err_pt_u, 'max_err_pt_l': max_err_pt_l,  # Store coordinates of max deviation points
                 'raw_upper': processor.upper_data, 'raw_lower': processor.lower_data,
-                'original_te_thickness': processor.get_te_thickness()  # Store original TE thickness (normalized)
+                'te_applied': False,
+                'te_value': processor.get_te_thickness(),  # Original TE thickness (normalized)
+                'enforce_g2': enforce_g2,
+                'enforce_g3': enforce_g3
             }
 
-        # 3. Post-Processing
+            # Edge case: Reapply TE thickness after CP count change
+            if prev_te_applied:
+                bspline.te_thickness_normalized = prev_te_value
+                bspline.upper_original_data = processor.upper_data.copy()
+                bspline.lower_original_data = processor.lower_data.copy()
+                if bspline.apply_te_thickening_parametric():
+                    state.fit_cache['upper_cp_raw'] = bspline.upper_control_points.copy()
+                    state.fit_cache['lower_cp_raw'] = bspline.lower_control_points.copy()
+                    state.fit_cache['upper_knots'] = bspline.upper_knot_vector
+                    state.fit_cache['lower_knots'] = bspline.lower_knot_vector
+                    state.fit_cache['degree_u'] = bspline.degree_upper
+                    state.fit_cache['degree_l'] = bspline.degree_lower
+                    state.fit_cache['is_sharp'] = bspline.is_sharp_te
+                    state.fit_cache['te_applied'] = True
+                    state.fit_cache['te_value'] = prev_te_value
+
+        # 3. Post-Processing - Apply TE thickening parametrically
         te_thickness = inputs.itemById('te_thickness').value
+        te_thickness_normalized = te_thickness / chord_length
+
+        te_changed = (not state.fit_cache.get('te_applied', False) or
+                      abs(state.fit_cache.get('te_value', 0.0) - te_thickness_normalized) > 1e-9)
+
+        if te_changed and not do_new_fit:
+            # Reconstruct processor state for TE thickening
+            bspline_te = BSplineProcessor()
+            bspline_te.upper_original_data = state.fit_cache['raw_upper'].copy()
+            bspline_te.lower_original_data = state.fit_cache['raw_lower'].copy()
+            bspline_te.num_cp_upper = state.current_cp_count_upper
+            bspline_te.num_cp_lower = state.current_cp_count_lower
+            bspline_te.enforce_g2 = state.fit_cache.get('enforce_g2', False)
+            bspline_te.enforce_g3 = state.fit_cache.get('enforce_g3', False)
+            bspline_te.smoothing_weight = inputs.itemById('smoothness_input').valueOne
+            bspline_te.fitted = True
+
+            # Apply TE thickness
+            bspline_te.te_thickness_normalized = te_thickness_normalized
+            if bspline_te.apply_te_thickening_parametric():
+                # Update cache
+                state.fit_cache['upper_cp_raw'] = bspline_te.upper_control_points.copy()
+                state.fit_cache['lower_cp_raw'] = bspline_te.lower_control_points.copy()
+                state.fit_cache['upper_knots'] = bspline_te.upper_knot_vector
+                state.fit_cache['lower_knots'] = bspline_te.lower_knot_vector
+                state.fit_cache['degree_u'] = bspline_te.degree_upper
+                state.fit_cache['degree_l'] = bspline_te.degree_lower
+                state.fit_cache['is_sharp'] = bspline_te.is_sharp_te
+                state.fit_cache['te_applied'] = True
+                state.fit_cache['te_value'] = te_thickness_normalized
+
         upper_cp = state.fit_cache['upper_cp_raw'].copy()
         lower_cp = state.fit_cache['lower_cp_raw'].copy()
         is_sharp = state.fit_cache['is_sharp']
-
-        # Calculate thickness delta: desired thickness minus original thickness from input data
-        original_te_thickness = state.fit_cache.get('original_te_thickness', 0.0)
-        desired_thickness_normalized = te_thickness / chord_length
-        thickness_delta = desired_thickness_normalized - original_te_thickness
-
-        if abs(thickness_delta) > 1e-9:
-            half_delta = 0.5 * thickness_delta
-            upper_cp[:, 1] += half_delta * bspline_helper.smoothstep_quintic(upper_cp[:, 0])
-            lower_cp[:, 1] -= half_delta * bspline_helper.smoothstep_quintic(lower_cp[:, 0])
-
-        is_sharp = te_thickness < 1e-9
 
         # 4. Update UI Status
         design = adsk.fusion.Design.cast(app.activeProduct)

@@ -37,11 +37,7 @@ class BSplineProcessor:
         
         self.upper_original_data: np.ndarray | None = None
         self.lower_original_data: np.ndarray | None = None
-        # Backup for undoing TE thickening
-        self._backup_upper_control_points: np.ndarray | None = None
-        self._backup_lower_control_points: np.ndarray | None = None
-        self._backup_upper_knot_vector: np.ndarray | None = None
-        self._backup_lower_knot_vector: np.ndarray | None = None
+        self.te_thickness_normalized: float = 0.0  # Normalized to chord (0-1)
 
 
     def fit_bspline(
@@ -647,121 +643,72 @@ class BSplineProcessor:
             self.upper_curve, self.lower_curve, num_points_per_segment, scale_factor
         )
 
-    def apply_te_thickening(self, te_thickness: float) -> bool:
+    def apply_te_thickening_parametric(self) -> bool:
         """
-        Apply trailing edge thickening as a post-processing step to the entire airfoil.
-        Uses a smooth C2 blend along the chord so that the offset is 0 at the
-        leading edge (with zero slope and curvature) and reaches the requested
-        thickness at the trailing edge.
-        
-        Args:
-            te_thickness: The thickness to apply at the trailing edge (0.0 to 1.0)
-            
+        Apply TE thickness to original data, then refit.
+        Uses te_thickness_normalized parameter to calculate delta from original TE thickness.
+        Always operates on original data to prevent error accumulation.
+
         Returns:
             bool: True if thickening was applied successfully, False otherwise
         """
-        if not self.fitted or self.upper_control_points is None or self.lower_control_points is None:
+        if not self.fitted or self.upper_original_data is None or self.lower_original_data is None:
             return False
-        
-        if te_thickness < 0.0:
-            return False
-        
+
         try:
-            # Sample both curves densely in parameter domain
-            if self.upper_curve is None or self.lower_curve is None:
-                return False
+            modified_upper = self.upper_original_data.copy()
+            modified_lower = self.lower_original_data.copy()
 
-            num_samples = max(200, int(config.PLOT_POINTS_PER_SURFACE))
+            # Calculate delta from original TE thickness
+            original_te = abs(self.upper_original_data[-1, 1] - self.lower_original_data[-1, 1])
+            te_delta = self.te_thickness_normalized - original_te
 
-            _, upper_pts = bspline_helper.sample_curve(self.upper_curve, num_samples)
-            _, lower_pts = bspline_helper.sample_curve(self.lower_curve, num_samples)
+            # Apply smoothstep blend if delta is non-zero
+            if abs(te_delta) > 1e-9:
+                half_delta = 0.5 * te_delta
+                upper_x = np.clip(modified_upper[:, 0], 0.0, 1.0)
+                lower_x = np.clip(modified_lower[:, 0], 0.0, 1.0)
 
-            # Blend based on x (already normalized to chord in data loader)
-            upper_x = np.clip(upper_pts[:, 0], 0.0, 1.0)
-            lower_x = np.clip(lower_pts[:, 0], 0.0, 1.0)
-            f_upper = bspline_helper.smoothstep_quintic(upper_x)
-            f_lower = bspline_helper.smoothstep_quintic(lower_x)
+                modified_upper[:, 1] += half_delta * bspline_helper.smoothstep_quintic(upper_x)
+                modified_lower[:, 1] -= half_delta * bspline_helper.smoothstep_quintic(lower_x)
 
-            half_thickness = 0.5 * te_thickness
+            # Refit with modified data
+            if self.enforce_g2:
+                success = self._fit_with_g2_optimization(
+                    modified_upper, modified_lower,
+                    (self.num_cp_upper, self.num_cp_lower),
+                    upper_te_dir=None, lower_te_dir=None,
+                    enforce_te_tangency=False,
+                    use_existing_knot_vectors=False
+                )
+                if not success:
+                    # Fallback to G1
+                    self._fit_g1_independent(
+                        modified_upper, modified_lower,
+                        (self.num_cp_upper, self.num_cp_lower),
+                        upper_te_dir=None, lower_te_dir=None,
+                        enforce_te_tangency=False,
+                        use_existing_knot_vectors=False
+                    )
+            else:
+                self._fit_g1_independent(
+                    modified_upper, modified_lower,
+                    (self.num_cp_upper, self.num_cp_lower),
+                    upper_te_dir=None, lower_te_dir=None,
+                    enforce_te_tangency=False,
+                    use_existing_knot_vectors=False
+                )
 
-            # Apply vertical, smoothly varying offsets
-            thick_upper = upper_pts.copy()
-            thick_lower = lower_pts.copy()
-            thick_upper[:, 1] = thick_upper[:, 1] + half_thickness * f_upper
-            thick_lower[:, 1] = thick_lower[:, 1] - half_thickness * f_lower
-
-            # Refit using current number of control points, preserving G1 at LE
-            self._fit_g1_independent(
-                thick_upper, thick_lower, (self.num_cp_upper, self.num_cp_lower),
-                upper_te_dir=None, lower_te_dir=None, enforce_te_tangency=False
-            )
-
-            # Mark as blunt before finalizing
-            self.is_sharp_te = False
-            
-            # Finalize and rebuild curves
+            # Update sharp TE status based on final thickness
+            self.is_sharp_te = (abs(self.te_thickness_normalized) < 1e-9)
             self._finalize_curves()
-            self.fitted = True
 
             return True
-            
+
         except Exception as e:
             try:
                 app = adsk.core.Application.get()
-                app.log(f"Error in apply_te_thickening: {str(e)}")
-            except:
-                pass
-            return False
-
-    def remove_te_thickening(self) -> bool:
-        """
-        Remove trailing edge thickening by restoring from backup.
-        
-        Returns:
-            bool: True if thickening was removed successfully, False otherwise
-        """
-        if not self.fitted or self.upper_control_points is None or self.lower_control_points is None:
-            return False
-        
-        try:
-            # If we have a backup from before thickening, restore it
-            if self._backup_upper_control_points is not None and self._backup_lower_control_points is not None:
-                self.upper_control_points = self._backup_upper_control_points
-                self.lower_control_points = self._backup_lower_control_points
-                # Restore knot vectors when available
-                if self._backup_upper_knot_vector is not None:
-                    self.upper_knot_vector = self._backup_upper_knot_vector
-                if self._backup_lower_knot_vector is not None:
-                    self.lower_knot_vector = self._backup_lower_knot_vector
-
-                # Rebuild curves
-                if self.upper_knot_vector is not None:
-                    self.upper_curve = interpolate.BSpline(
-                        self.upper_knot_vector, self.upper_control_points, self.degree
-                    )
-                if self.lower_knot_vector is not None:
-                    self.lower_curve = interpolate.BSpline(
-                        self.lower_knot_vector, self.lower_control_points, self.degree
-                    )
-
-                # After restoring, clear backups
-                self._backup_upper_control_points = None
-                self._backup_lower_control_points = None
-                self._backup_upper_knot_vector = None
-                self._backup_lower_knot_vector = None
-
-                # Reset TE type
-                self.is_sharp_te = bool(np.allclose(self.upper_control_points[-1], self.lower_control_points[-1], atol=1e-12))
-
-                return True
-            
-            # Fallback: if no backup available, we can't restore
-            return False
-            
-        except Exception as e:
-            try:
-                app = adsk.core.Application.get()
-                app.log(f"Error in remove_te_thickening: {str(e)}")
+                app.log(f"Error in apply_te_thickening_parametric: {str(e)}")
             except:
                 pass
             return False

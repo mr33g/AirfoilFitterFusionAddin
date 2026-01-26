@@ -148,6 +148,7 @@ Michael Reeg
 
 ## Unreleased
 - Fixed deinstall on drives other than c:
+- Improved TE thickening
 
 ### v1.1.2 (2026-01-23)
 - Experimental bundle for MacOS
