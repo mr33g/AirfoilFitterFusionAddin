@@ -147,6 +147,7 @@ Michael Reeg
 ## Changelog
 
 ## Unreleased
+- Fixed MacOS package, removed .pyc and .pyo files
 - Fixed deinstall on drives other than c:
 - Improved TE thickening
 

@@ -130,7 +130,13 @@ jobs:
           python -m pip install \
             --target "$staging/AirfoilFitter/lib" \
             -r ../requirements.txt \
+            --no-compile \
+            --no-cache-dir \
             --quiet
+
+          find "$staging/AirfoilFitter/lib" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          find "$staging/AirfoilFitter/lib" -type f -name "*.pyc" -delete 2>/dev/null || true
+          find "$staging/AirfoilFitter/lib" -type f -name "*.pyo" -delete 2>/dev/null || true
 
           out="AirfoilFitterAddin-macos-${{ env.VERSION_NO_BUILD }}.zip"
           cd "$staging"
