@@ -13,7 +13,8 @@ BASE_EXCLUDED_DIRS = {
     '__pycache__',  # Don't include Python cache (but we DO need to clean it up on uninstall)
     '.idea',        # Don't include JetBrains IDE settings
     '.claude',
-    '.github'
+    '.github',
+    'res'
 }
 
 # Directories that may be created at runtime and need cleanup on uninstall
