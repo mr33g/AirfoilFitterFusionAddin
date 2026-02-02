@@ -25,8 +25,9 @@ A Fusion add-in that imports airfoil coordinate data from `.dat` files and fits 
 
 1. Download & extract the bundled MacOS Package
 2. Move the "AirfoilFitter" folder to `~/Library/Application Support/Autodesk/Autodesk Fusion 360/API/AddIns/`
-3. Register & run the Add-in in Fusions Script and Add-In Manager (Shift + S)
-4. Dependencies can't be updated automatically. Check for a new release if the Add-in stops working after a Fusion update
+3. Run this command: `xattr -dr com.apple.quarantine "/Users/mirkomalisan/Library/Application Support/Autodesk/Autodesk Fusion 360/API/AddIns"`
+4. Register & run the Add-in in Fusions Script and Add-In Manager (Shift + S)
+5. Dependencies can't be updated automatically. Check for a new release if the Add-in stops working after a Fusion update
 
 ## Usage
 
