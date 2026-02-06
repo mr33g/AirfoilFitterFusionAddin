@@ -1,15 +1,178 @@
 import numpy as np
+from scipy.interpolate import CubicSpline
 
-def normalize_airfoil_data(upper_surface, lower_surface, logger_func=print):
+
+def _remove_consecutive_duplicates(points: np.ndarray, tol: float = 1e-12) -> np.ndarray:
+    if len(points) == 0:
+        return points
+    diffs = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    keep = np.concatenate(([True], diffs > tol))
+    return points[keep]
+
+
+def _compute_arc_length(points: np.ndarray) -> np.ndarray:
+    diffs = np.diff(points, axis=0)
+    seg_lengths = np.linalg.norm(diffs, axis=1)
+    s = np.zeros(len(points), dtype=float)
+    s[1:] = np.cumsum(seg_lengths)
+    return s
+
+
+def _build_contour_from_surfaces(
+    upper_surface: np.ndarray, lower_surface: np.ndarray
+) -> np.ndarray:
+    upper_te_to_le = np.flipud(upper_surface)
+    if len(lower_surface) > 0 and np.allclose(upper_te_to_le[-1], lower_surface[0]):
+        lower_part = lower_surface[1:]
+    else:
+        lower_part = lower_surface
+    return np.vstack([upper_te_to_le, lower_part])
+
+
+def _find_real_le_on_spline(
+    contour: np.ndarray, logger_func=print
+) -> tuple[np.ndarray, int]:
+    contour = _remove_consecutive_duplicates(contour)
+    if len(contour) < 4:
+        raise ValueError("Not enough points to compute cubic spline for leading edge detection.")
+
+    s = _compute_arc_length(contour)
+    if not np.all(np.diff(s) > 0):
+        raise ValueError("Arc-length parameter is not strictly increasing; check for duplicate points.")
+
+    x = contour[:, 0]
+    y = contour[:, 1]
+    x_spline = CubicSpline(s, x)
+    y_spline = CubicSpline(s, y)
+
+    x_te = 0.5 * (x[0] + x[-1])
+    y_te = 0.5 * (y[0] + y[-1])
+
+    sle = None
+    for i in range(2, len(contour) - 2):
+        dxte = x[i] - x_te
+        dyte = y[i] - y_te
+        dx = x[i + 1] - x[i]
+        dy = y[i + 1] - y[i]
+        dotp = dxte * dx + dyte * dy
+        if dotp < 0.0:
+            sle = s[i]
+            break
+    if sle is None:
+        sle = s[int(np.argmin(x))]
+
+    ds_eps = (s[-1] - s[0]) * 1.0e-10
+    for _ in range(50):
+        x_le = x_spline(sle)
+        y_le = y_spline(sle)
+        dxds = x_spline(sle, 1)
+        dyds = y_spline(sle, 1)
+        dxdd = x_spline(sle, 2)
+        dydd = y_spline(sle, 2)
+
+        x_chord = x_le - x_te
+        y_chord = y_le - y_te
+        res = x_chord * dxds + y_chord * dyds
+        ress = dxds * dxds + dyds * dyds + x_chord * dxdd + y_chord * dydd
+        if np.isclose(ress, 0.0):
+            break
+        dsle = -res / ress
+        max_step = 0.02 * max(abs(x_chord) + abs(y_chord), 1.0e-12)
+        dsle = np.clip(dsle, -max_step, max_step)
+        sle = np.clip(sle + dsle, s[0], s[-1])
+        if abs(dsle) < ds_eps:
+            break
+    else:
+        logger_func("Warning: LE spline search did not converge; using last estimate.")
+
+    x_le = float(x_spline(sle))
+    y_le = float(y_spline(sle))
+    le_point = np.array([x_le, y_le], dtype=float)
+
+    insert_idx = int(np.searchsorted(s, sle))
+    if insert_idx < len(s) and abs(s[insert_idx] - sle) < ds_eps:
+        contour[insert_idx] = le_point
+        le_index = insert_idx
+        return contour, le_index
+
+    # Avoid adding a point if the real LE is already represented in the data.
+    bbox = np.ptp(contour, axis=0)
+    scale = float(max(bbox[0], bbox[1], 1.0))
+    min_dist_tol = max(1.0e-7 * scale, 1.0e-12)
+    dists = np.linalg.norm(contour - le_point, axis=1)
+    closest_idx = int(np.argmin(dists))
+    if dists[closest_idx] <= min_dist_tol:
+        logger_func(
+            "Real LE matches existing point within tolerance; no point inserted. "
+            f"Closest idx {closest_idx}, dist {dists[closest_idx]:.3e}."
+        )
+        return contour, closest_idx
+
+    contour = np.insert(contour, insert_idx, le_point, axis=0)
+    logger_func(
+        "Inserted real LE point from spline definition. "
+        f"Index {insert_idx}, point ({x_le:.8f}, {y_le:.8f})."
+    )
+    le_index = insert_idx
+    return contour, le_index
+
+
+def _split_contour_at_le(
+    contour: np.ndarray, le_index: int
+) -> tuple[np.ndarray, np.ndarray]:
+    if le_index <= 0 or le_index >= len(contour) - 1:
+        raise ValueError("Leading edge index is at contour boundary; input may be malformed.")
+    upper_surface = np.flipud(contour[: le_index + 1])
+    lower_surface = contour[le_index:]
+    return upper_surface, lower_surface
+
+
+def prepare_surfaces_with_real_le(
+    upper_surface: np.ndarray, lower_surface: np.ndarray, logger_func=print
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Builds a closed contour from upper/lower surfaces, finds the real leading edge
+    using the spline-normal definition, inserts that point, and splits back into
+    LE->TE ordered surfaces.
+    """
+    contour = _build_contour_from_surfaces(upper_surface, lower_surface)
+    contour, le_index = _find_real_le_on_spline(contour, logger_func)
+    return _split_contour_at_le(contour, le_index)
+
+
+def prepare_surfaces_from_selig_contour(
+    all_coords: np.ndarray, logger_func=print
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Takes a Selig-style contour (TE upper -> around LE -> TE lower),
+    finds/inserts the real leading edge, and splits into LE->TE surfaces.
+    """
+    contour, le_index = _find_real_le_on_spline(all_coords, logger_func)
+    return _split_contour_at_le(contour, le_index)
+
+
+def normalize_airfoil_data(
+    upper_surface, lower_surface, logger_func=print, real_le_prepared: bool = False
+):
     """
     Normalizes airfoil coordinates to have a chord length of 1, with the
     leading edge at (0,0) and the trailing edge chord-line at (1,0) if appropriate.
+
+    This process preserves the shape of the airfoil by performing translation,
+    rotation, and scaling. For thick trailing edges, y-normalization is only performed
+    if the TE y-values are not symmetric about y=0.
     """
+    # Ensure LE is the real spline-defined LE and surfaces are ordered LE->TE.
+    if not real_le_prepared:
+        upper_surface, lower_surface = prepare_surfaces_with_real_le(
+            upper_surface, lower_surface, logger_func
+        )
+
     le_point = upper_surface[0].copy()
     te_upper = upper_surface[-1]
     te_lower = lower_surface[-1]
     te_point = (te_upper + te_lower) / 2.0
-    
+
     logger_func(f"Normalizing airfoil. Original LE: {le_point}, Original TE (midpoint): {te_point}")
 
     # Translate so LE is at the origin (0,0)
@@ -25,10 +188,12 @@ def normalize_airfoil_data(upper_surface, lower_surface, logger_func=print):
         rotation_angle = -np.arctan2(te_translated[1], te_translated[0])
 
     if abs(rotation_angle) > 0:
-        rotation_matrix = np.array([
-            [np.cos(rotation_angle), -np.sin(rotation_angle)],
-            [np.sin(rotation_angle),  np.cos(rotation_angle)]
-        ])
+        rotation_matrix = np.array(
+            [
+                [np.cos(rotation_angle), -np.sin(rotation_angle)],
+                [np.sin(rotation_angle), np.cos(rotation_angle)],
+            ]
+        )
         upper_rotated = upper_translated @ rotation_matrix.T
         lower_rotated = lower_translated @ rotation_matrix.T
         te_rotated = te_translated @ rotation_matrix.T
@@ -36,13 +201,15 @@ def normalize_airfoil_data(upper_surface, lower_surface, logger_func=print):
         upper_rotated = upper_translated
         lower_rotated = lower_translated
         te_rotated = te_translated
-    
+
     chord_length = te_rotated[0]
 
     if np.isclose(chord_length, 0):
         raise ValueError("Cannot normalize airfoil with zero chord length.")
-    
-    logger_func(f"Detected chord length: {chord_length:.6f}, rotating by {np.rad2deg(rotation_angle):.4f} degrees.")
+
+    logger_func(
+        f"Detected chord length: {chord_length:.6f}, rotating by {np.rad2deg(rotation_angle):.4f} degrees."
+    )
 
     upper_normalized = upper_rotated / chord_length
     lower_normalized = lower_rotated / chord_length
@@ -59,7 +226,9 @@ def normalize_airfoil_data(upper_surface, lower_surface, logger_func=print):
         lower_normalized[:, 1] -= y_shift
     elif np.isclose(y_te_upper, -y_te_lower, atol=tol):
         # Thickened and symmetric, do not shift y
-        logger_func("TE y-values are symmetric about y=0 (thickened trailing edge). No y-shift performed.")
+        logger_func(
+            "TE y-values are symmetric about y=0 (thickened trailing edge). No y-shift performed."
+        )
     else:
         # Not symmetric, shift so TE midpoint is at y=0
         y_shift = (y_te_upper + y_te_lower) / 2.0
@@ -69,11 +238,15 @@ def normalize_airfoil_data(upper_surface, lower_surface, logger_func=print):
 
     return upper_normalized, lower_normalized
 
+
 def load_airfoil_data(filename, logger_func=print):
     """
     Loads airfoil coordinates from a file, supporting Selig and Lednicer .dat formats.
+
+    Returns:
+        tuple: (upper_surface_coords, lower_surface_coords, airfoil_name, thickened, te_thickness)
     """
-    with open(filename, 'r') as f:
+    with open(filename, "r") as f:
         lines = [line.strip() for line in f.readlines() if line.strip()]
 
     if not lines:
@@ -86,6 +259,7 @@ def load_airfoil_data(filename, logger_func=print):
     num_upper_points = 0
     num_lower_points = 0
 
+    # 1. Try Lednicer with count line (both numbers close to int and > 1)
     if len(lines) > 1:
         parts = lines[1].split()
         if len(parts) == 2:
@@ -104,6 +278,7 @@ def load_airfoil_data(filename, logger_func=print):
             except ValueError:
                 pass
 
+    # 2. Slope-based detection if not already Lednicer
     if not is_lednicer:
         slope_start = coords_start_line
         sample_coords = []
@@ -124,47 +299,98 @@ def load_airfoil_data(filename, logger_func=print):
                 logger_func(f"Ambiguous x slope for '{airfoil_name}'. Defaulting to Selig-like format.")
                 is_lednicer = False
         else:
-            logger_func(f"Insufficient coordinate data to determine format for '{airfoil_name}'. Defaulting to Selig-like format.")
+            logger_func(
+                f"Insufficient coordinate data to determine format for '{airfoil_name}'. Defaulting to Selig-like format."
+            )
             is_lednicer = False
 
     if is_lednicer:
         if coords_start_line == 2:
-            logger_func(f"Detected Lednicer format for '{airfoil_name}' (by count line). Expected upper points: {num_upper_points}, lower points: {num_lower_points}.")
-            all_coords_raw = np.array([list(map(float, line.split())) for line in lines[coords_start_line:]])
+            logger_func(
+                f"Detected Lednicer format for '{airfoil_name}' (by count line). "
+                f"Expected upper points: {num_upper_points}, lower points: {num_lower_points}."
+            )
+            all_coords_raw = np.array(
+                [list(map(float, line.split())) for line in lines[coords_start_line:]]
+            )
             if len(all_coords_raw) != (num_upper_points + num_lower_points):
-                logger_func(f"Warning: Declared points ({num_upper_points + num_lower_points}) do not match actual points read ({len(all_coords_raw)}). Attempting to proceed.")
+                logger_func(
+                    f"Warning: Declared points ({num_upper_points + num_lower_points}) "
+                    f"do not match actual points read ({len(all_coords_raw)}). Attempting to proceed."
+                )
             upper_surface = all_coords_raw[:num_upper_points]
             lower_surface = all_coords_raw[num_upper_points:]
         else:
             logger_func(f"Detected Lednicer format for '{airfoil_name}' (by x slope, no count line).")
-            all_coords_raw = np.array([list(map(float, line.split())) for line in lines[coords_start_line:]])
+            all_coords_raw = np.array(
+                [list(map(float, line.split())) for line in lines[coords_start_line:]]
+            )
             midpoint = len(all_coords_raw) // 2
             upper_surface = all_coords_raw[:midpoint]
             lower_surface = all_coords_raw[midpoint:]
+        # Basic validation: check if LE point is consistent
+        if not (
+            np.allclose(upper_surface[0], lower_surface[0])
+            and np.allclose(upper_surface[0], [0.0, 0.0])
+        ):
+            logger_func(
+                "Warning: Leading edge points are not consistent or not at (0,0) in Lednicer format. "
+                "Data may need normalization."
+            )
     else:
         logger_func(f"Detected Selig-like format for '{airfoil_name}'.")
         coords_str = lines[coords_start_line:]
         all_coords = np.array([list(map(float, line.split())) for line in coords_str if line])
-        
-        le_index = int(np.argmin(all_coords[:, 0]))
-        if le_index == 0 or le_index == len(all_coords) - 1:
-            raise ValueError(f"Leading edge (min x) found at start or end of data, input may be malformed.")
+        upper_surface, lower_surface = prepare_surfaces_from_selig_contour(all_coords, logger_func)
 
-        upper_surface_raw = all_coords[:le_index + 1]
-        lower_surface = all_coords[le_index:]
-        upper_surface = np.flipud(upper_surface_raw)
+    # Always normalize the data to ensure consistency.
+    upper_surface, lower_surface = normalize_airfoil_data(
+        upper_surface,
+        lower_surface,
+        logger_func,
+        real_le_prepared=is_lednicer is False,
+    )
 
-    upper_surface, lower_surface = normalize_airfoil_data(upper_surface, lower_surface, logger_func)
-
+    # Detect thickened trailing edge (symmetric about y=0)
     y_te_upper = upper_surface[-1, 1]
     y_te_lower = lower_surface[-1, 1]
     tol = 1e-8
-    thickened = False
-    # Calculate TE thickness (normalized to chord length)
     te_thickness = abs(y_te_upper - y_te_lower)
-    if te_thickness > tol:
+    thickened = False
+    if (not np.isclose(y_te_upper, y_te_lower, atol=tol)) and np.isclose(
+        y_te_upper, -y_te_lower, atol=tol
+    ):
         thickened = True
-        logger_func(f"Trailing edge is thickened. TE thickness: {te_thickness:.6f} (normalized to chord).")
+        logger_func("Trailing edge is thickened and symmetric about y=0.")
 
     return upper_surface, lower_surface, airfoil_name, thickened, te_thickness
 
+
+def find_shoulder_x_coords(upper_data, lower_data):
+    """
+    Identifies the x-coordinates for the upper and lower shared vertices (shoulder points)
+    based on maximum/minimum y-values in the original airfoil data.
+    """
+    upper_max_y_idx = np.argmax(upper_data[:, 1])
+    upper_shoulder_x = upper_data[upper_max_y_idx, 0]
+
+    lower_min_y_idx = np.argmin(lower_data[:, 1])
+    lower_shoulder_x = lower_data[lower_min_y_idx, 0]
+
+    return upper_shoulder_x, lower_shoulder_x
+
+
+def export_airfoil_to_selig_format(upper_surface, lower_surface, airfoil_name, filename):
+    """
+    Export airfoil data in Selig format to a .dat file.
+    """
+    with open(filename, "w") as f:
+        f.write(f"{airfoil_name}\n")
+
+        for i in range(len(upper_surface) - 1, -1, -1):
+            x, y = upper_surface[i]
+            f.write(f"{x:.6f} {y:.6f}\n")
+
+        for i in range(1, len(lower_surface)):
+            x, y = lower_surface[i]
+            f.write(f"{x:.6f} {y:.6f}\n")
