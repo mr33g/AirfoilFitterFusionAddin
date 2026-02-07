@@ -8,10 +8,8 @@ algorithms or UI widgets.
 from __future__ import annotations
 
 # B-spline settings
-DEFAULT_SMOOTHNESS_PENALTY: float = 0.01  # Weight for control point smoothing penalty (higher = smoother, lower = more accurate)
+DEFAULT_SMOOTHNESS_PENALTY: float = 0.001  # Weight for control point smoothing penalty (higher = smoother, lower = more accurate)
 DEFAULT_CP_COUNT: int = 10
-# Sampling settings (used for TE thickening)
-PLOT_POINTS_PER_SURFACE: int = 500
 
 # ---- Sampling & Debugging -----------------------------------------------
 NUM_POINTS_CURVE_ERROR: int = 35000

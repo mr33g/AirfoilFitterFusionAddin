@@ -104,6 +104,7 @@ def create_error_text_label(graphics_group, error_text, marker_point, normal_vec
         billboard.billBoardStyle = adsk.fusion.CustomGraphicsBillBoardStyles.ScreenBillBoardStyle
         cg_text.billBoarding = billboard
         cg_text.viewScale = adsk.fusion.CustomGraphicsViewScale.create(view_scale_factor, adsk.core.Point3D.create(0, 0, 0))
+        cg_text.depthPriority = 1100
     
     # Draw leader line from marker to text anchor
     line_coords = [
@@ -115,7 +116,7 @@ def create_error_text_label(graphics_group, error_text, marker_point, normal_vec
     if cg_line:
         cg_line.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(adsk.core.Color.create(0, 0, 0, 255))
         cg_line.lineStylePattern = adsk.fusion.LineStylePatterns.continuousLineStylePattern
-        cg_line.depthPriority = -1
+        cg_line.depthPriority = 1050
     
     return text_anchor, cg_text
 

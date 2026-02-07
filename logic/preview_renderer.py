@@ -15,6 +15,12 @@ from logic.fusion_graphics import draw_error_labels
 
 _addin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Custom graphics draw order (higher draws on top).
+DEPTH_COMB = -100
+DEPTH_RAW = 0
+DEPTH_CONTROL = 10
+DEPTH_ERROR = 1000
+
 
 def _get_world_pts(cp_list, chord_length, airfoil_to_world):
     """Convert control points to graphics coordinates as flat list [x, y, z, x, y, z, ...]
@@ -72,6 +78,7 @@ def draw_control_polygon(graphics_group, upper_cp, lower_cp, chord_length,
                 cg_lines_upper.lineStylePattern = adsk.fusion.LineStylePatterns.dashedLineStylePattern
                 cg_lines_upper.lineStyleScale = 0.15
                 cg_lines_upper.isScreenSpaceLineStyle = False
+                cg_lines_upper.depthPriority = DEPTH_CONTROL
         except Exception as e:
             app.log(f"Error drawing upper control polygon: {e}")
     
@@ -86,6 +93,7 @@ def draw_control_polygon(graphics_group, upper_cp, lower_cp, chord_length,
                 cg_lines_lower.lineStylePattern = adsk.fusion.LineStylePatterns.dashedLineStylePattern
                 cg_lines_lower.lineStyleScale = 0.15
                 cg_lines_lower.isScreenSpaceLineStyle = False
+                cg_lines_lower.depthPriority = DEPTH_CONTROL
         except Exception as e:
             app.log(f"Error drawing lower control polygon: {e}")
     
@@ -125,6 +133,7 @@ def draw_trailing_edge_line(graphics_group, upper_coords, lower_coords, is_sharp
     if cg_lines_te:
         cg_lines_te.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(adsk.core.Color.create(255, 165, 0, 255))
         cg_lines_te.lineStylePattern = adsk.fusion.LineStylePatterns.dashedLineStylePattern
+        cg_lines_te.depthPriority = DEPTH_CONTROL
 
 
 def draw_curvature_comb(graphics_group, upper_cp, lower_cp, fit_cache, 
@@ -227,6 +236,7 @@ def draw_curvature_comb(graphics_group, upper_cp, lower_cp, fit_cache,
                 cg_hairs = graphics_group.addLines(cg_coords_hairs, hair_indices, False)
                 if cg_hairs:
                     cg_hairs.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(adsk.core.Color.create(40, 169, 212, 255))
+                    cg_hairs.depthPriority = DEPTH_COMB
             
             # Draw red outline connecting the outer tips of the hairs
             if len(outer_tips_coords) >= 6:  # At least 2 points
@@ -235,6 +245,7 @@ def draw_curvature_comb(graphics_group, upper_cp, lower_cp, fit_cache,
                 cg_outline = graphics_group.addLines(cg_coords_outline, outer_tips_indices, True)
                 if cg_outline:
                     cg_outline.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(adsk.core.Color.create(255, 0, 0, 255))
+                    cg_outline.depthPriority = DEPTH_COMB
     
     except Exception as e:
         app.log(f"Error drawing curvature comb: {e}")
@@ -318,6 +329,8 @@ def draw_error_markers(graphics_group, upper_cp, lower_cp, fit_cache,
         point_type,
         error_image_path
     )
+    if cg_point_set:
+        cg_point_set.depthPriority = DEPTH_ERROR
     
     # Add billboarding text labels for error values
     draw_error_labels(
@@ -367,6 +380,10 @@ def draw_raw_data_points(graphics_group, chord_length, airfoil_to_world, target_
             point_type,
             raw_image_path
         )
+        if cg_point_set_upper:
+            cg_point_set_upper.depthPriority = DEPTH_RAW
+        if cg_point_set_lower:
+            cg_point_set_lower.depthPriority = DEPTH_RAW
 
     except Exception as e:
         app.log(f"Error drawing raw data points: {e}")
@@ -412,10 +429,10 @@ def render_preview(target_sketch, upper_cp, lower_cp, fit_cache, chord_length,
         state.preview_graphics, upper_cp, lower_cp, chord_length,
         airfoil_to_world, target_sketch, u_cp_trans, l_cp_trans
     )
-    
+
     # Draw trailing edge line
     draw_trailing_edge_line(state.preview_graphics, upper_coords, lower_coords, is_sharp)
-    
+
     # Draw curvature comb if enabled
     draw_curvature_comb(
         state.preview_graphics, upper_cp, lower_cp, fit_cache,

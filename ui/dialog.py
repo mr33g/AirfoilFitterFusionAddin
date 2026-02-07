@@ -41,7 +41,7 @@ def create_ui_inputs(inputs):
 
         # Smoothness penalty
         smoothness = groupFitterSettingsChildInputs.addFloatSliderCommandInput('smoothness_input', 'Smoothness Penalty', "", 0, 0.1, False)
-        smoothness.valueOne = 0.01
+        smoothness.valueOne = config.DEFAULT_SMOOTHNESS_PENALTY
         smoothness.isVisible = False
 
         # 4. Options (Initially Hidden)
