@@ -13,6 +13,9 @@ lib_dir = os.path.join(addin_dir, 'lib')
 if lib_dir not in sys.path:
     sys.path.insert(0, lib_dir)
 
+# Local imports after path setup
+from utils.i18n import t
+
 # Now we can import our modular components
 from logic import state
 
@@ -28,10 +31,8 @@ def ensure_dependencies():
 
     ui = adsk.core.Application.get().userInterface
     res = ui.messageBox(
-        "AirfoilFitter requires external libraries (numpy, scipy, ezdxf).\n\n"
-        "They were not found in the bundled 'lib' folder.\n"
-        "Would you like to attempt a local installation into the add-in folder?",
-        "Dependencies Missing",
+        t("deps_missing_msg"),
+        t("deps_missing_title"),
         adsk.core.MessageBoxButtonTypes.YesNoButtonType
     )
     
@@ -54,16 +55,14 @@ def ensure_dependencies():
         
         if os.name == 'nt':
             os.system(f'start "AirfoilFitter Dependency Installer" cmd /c "{pip_cmd} & pause"')
-            ui.messageBox("Installation has started in a separate window.\n\n"
-                         "Please wait for it to complete, then restart Fusion.")
+            ui.messageBox(t("deps_install_started"))
         else:
             subprocess.check_call([python_exe, '-m', 'pip', 'install', '--upgrade', '--force-reinstall', '--target', lib_dir, 'numpy', 'scipy', 'ezdxf'])
-            ui.messageBox("Installation complete. Please restart Fusion.")
+            ui.messageBox(t("deps_install_complete"))
             
         return False
     except Exception as e:
-        ui.messageBox(f"Resilient installation failed: {str(e)}\n\n"
-                     "Please manually install dependencies or contact support.")
+        ui.messageBox(t("deps_install_failed", error=str(e)))
         return False
 
 def run(context):
@@ -92,8 +91,8 @@ def run(context):
             resource_path = os.path.join(addin_dir, 'resources', 'AirfoilFitterCommand')
             cmd_def = ui.commandDefinitions.addButtonDefinition(
                 'AirfoilFitterCommand', 
-                'Insert fitted Airfoil', 
-                'Fit a spline to an airfoil .dat file in Selig or Lednicer format',
+                t("cmd_button_name"),
+                t("cmd_button_desc"),
                 resource_path
             )
             toolClip_path = os.path.join(addin_dir, 'resources', 'AirfoilFitterCommand', 'tooltip.png')
@@ -123,7 +122,7 @@ def run(context):
 
     except:
         if ui:
-            ui.messageBox('Failed to start:\n{}'.format(traceback.format_exc()))
+            ui.messageBox(t("failed_to_start", error=traceback.format_exc()))
 
 def stop(context):
     try:

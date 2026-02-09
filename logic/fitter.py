@@ -11,6 +11,7 @@ from core.bspline_processor import BSplineProcessor
 from utils.fusion_geometry_helper import create_fusion_spline, import_splines_via_dxf
 from utils import bspline_helper
 from logic.preview_renderer import render_preview
+from utils.i18n import t
 
 
 def run_fitter(inputs, is_preview):
@@ -125,7 +126,7 @@ def run_fitter(inputs, is_preview):
             
             processor = AirfoilProcessor(logger_func=lambda msg: None)
             if not processor.load_airfoil_data_and_initialize_model(file_path):
-                app.userInterface.messageBox('Failed to load airfoil data, please check the file path and try again.')
+                app.userInterface.messageBox(t("failed_load_airfoil_data"))
                 return False
             
             # Determine operation type based on state
@@ -156,7 +157,7 @@ def run_fitter(inputs, is_preview):
                     enforce_te_tangency=enforce_te_tangent, single_span=True
                 )
                 if not success: 
-                    app.userInterface.messageBox('Failed to fit airfoil, please check the input parameters and try again.')
+                    app.userInterface.messageBox(t("failed_fit_airfoil"))
                     return False
                 
                 # Store processor and CP count in state
@@ -203,7 +204,7 @@ def run_fitter(inputs, is_preview):
                         )
                         success = bspline.insert_knot_at_max_error(surface, single_span=True)
                         if not success:
-                            app.userInterface.messageBox(f'Failed to insert knot on {surface} surface.')
+                            app.userInterface.messageBox(t("failed_insert_knot", surface=surface))
                             return False
                 
                 def remove_control_points(cp_diff, surface):
@@ -226,7 +227,7 @@ def run_fitter(inputs, is_preview):
                         enforce_te_tangency=enforce_te_tangent, single_span=True
                     )
                     if not success:
-                        app.userInterface.messageBox(f'Failed to re-fit {surface} surface with reduced control points.')
+                        app.userInterface.messageBox(t("failed_refit_surface", surface=surface))
                         return False
                     # Update state for the changed surface
                     if surface == 'upper':
@@ -445,5 +446,5 @@ def run_fitter(inputs, is_preview):
         return True
     except:
         app.log(f"Error: {traceback.format_exc()}")
-        app.userInterface.messageBox('An error occurred, please check the log for more details.')
+        app.userInterface.messageBox(t("generic_error"))
         return False

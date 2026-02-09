@@ -6,6 +6,7 @@ from ui.dialog import create_ui_inputs
 from logic import state
 from logic.fitter import run_fitter
 from core import config
+from utils.i18n import t
 
 def update_cp_count_labels(inputs):
     """Update the labels for CP count controls with current values."""
@@ -60,6 +61,7 @@ class AirfoilFitterCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
         try:
             event_args = adsk.core.CommandCreatedEventArgs.cast(args)
             cmd = event_args.command
+            cmd.setDialogSize(300, 0)
             
             on_execute = AirfoilFitterCommandExecuteHandler()
             cmd.execute.add(on_execute)
@@ -81,7 +83,7 @@ class AirfoilFitterCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
         except Exception as e:
             app = adsk.core.Application.get()
-            app.userInterface.messageBox('Command Created Failed:\n{}'.format(traceback.format_exc()))
+            app.userInterface.messageBox(t("command_created_failed", error=traceback.format_exc()))
 
 class AirfoilFitterCommandExecuteHandler(adsk.core.CommandEventHandler):
     def __init__(self):
@@ -92,7 +94,7 @@ class AirfoilFitterCommandExecuteHandler(adsk.core.CommandEventHandler):
             event_args.isExecuted = run_fitter(event_args.command.commandInputs, False)
         except Exception as e:
             app = adsk.core.Application.get()
-            app.userInterface.messageBox('Execution Error:\n{}'.format(traceback.format_exc()))
+            app.userInterface.messageBox(t("execution_error", error=traceback.format_exc()))
 
 class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
     def __init__(self):
@@ -115,7 +117,7 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
             if changed_id == 'select_file':
                 ui = adsk.core.Application.get().userInterface
                 dlg = ui.createFileDialog()
-                dlg.filter = 'Airfoil (*.dat);;All Files (*.*)'
+                dlg.filter = t("file_filter")
                 if dlg.showOpen() == adsk.core.DialogResults.DialogOK:
                     file_input = inputs.itemById('file_path')
                     file_input.value = dlg.filename
