@@ -148,6 +148,14 @@ Michael Reeg
 ## Changelog
 
 ## Unreleased
+
+### v1.1.4 (2026-02-10)
+- German language support
+- UI Improvements
+- Better default settings
+
+### v1.1.3 (2026-02-06)
+- Improved Input Normalization 
 - Fixed MacOS package, removed .pyc and .pyo files
 - Fixed deinstall on drives other than c:
 - Improved TE thickening
