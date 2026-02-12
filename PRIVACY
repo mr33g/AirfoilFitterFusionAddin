@@ -30,3 +30,38 @@ We may update this privacy policy from time to time. Any changes will be reflect
 ## Contact
 If you have questions about this privacy policy, please contact:
 m.reeg@hotmail.com
+
+---
+
+# Datenschutzerklaerung fuer Airfoil Fitter Fusion
+
+**Zuletzt aktualisiert:** 13. Januar 2026
+
+## Ueberblick
+Airfoil Fitter Fusion ("das Add-in") ist ein Werkzeug fuer Autodesk Fusion, das Benutzer beim Anpassen von B-Spline-Kurven an Profilkoordinatendaten unterstuetzt. Diese Datenschutzerklaerung erklaert, wie das Add-in mit Benutzerdaten umgeht.
+
+## Datenerhebung
+Das Add-in erhebt, speichert oder uebermittelt **keine** personenbezogenen Informationen oder Benutzerdaten an externe Server oder Dritte.
+
+## Lokale Datenverarbeitung
+Das Add-in verarbeitet Daten vollstaendig auf Ihrem lokalen Rechner:
+- Von Ihnen bereitgestellte Profilkoordinatendaten werden lokal innerhalb von Fusion verarbeitet
+- Temporaere Dateien (z. B. DXF-Dateien) werden waehrend der Nutzung im temporaeren Verzeichnis Ihres Systems erstellt
+- Diese temporaeren Dateien werden nach der Verwendung automatisch geloescht
+- Keine Daten verlassen Ihren Computer
+
+## Datenspeicherung
+Das Add-in speichert keine Benutzerdaten, Einstellungen oder Praeferenzen. Alle Verarbeitungen erfolgen im Arbeitsspeicher oder in temporaeren Dateien, die automatisch bereinigt werden.
+
+## Dienste Dritter
+Das Add-in verwendet keine Dienste Dritter, keine Analytik und keine Tracking-Tools.
+
+## Rechte der Benutzer
+Da keine personenbezogenen Daten erhoben oder gespeichert werden, gibt es keine Daten, auf die zugegriffen, die geaendert oder die geloescht werden koennen.
+
+## Aenderungen dieser Richtlinie
+Wir koennen diese Datenschutzerklaerung von Zeit zu Zeit aktualisieren. Etwaige Aenderungen werden im Datum "Zuletzt aktualisiert" am Anfang dieses Dokuments kenntlich gemacht.
+
+## Kontakt
+Wenn Sie Fragen zu dieser Datenschutzerklaerung haben, kontaktieren Sie bitte:
+m.reeg@hotmail.com
