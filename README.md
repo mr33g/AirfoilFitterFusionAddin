@@ -6,7 +6,10 @@ A Fusion add-in that imports airfoil coordinate data from `.dat` files and fits 
 
 ### MSI Installer (Windows)
 
-- **File**: `AirfoilFitterAddin.msi`
+The Installer is now distributed via the Autodesk App Store.
+
+https://apps.autodesk.com/FUSION/en/Detail/Index?id=7312110669169312529&appLang=en&os=Win64
+
 1. Close Fusion
 2. Download & run the installer
 3. Start Fusion & confirm dependency installation
@@ -20,14 +23,6 @@ A Fusion add-in that imports airfoil coordinate data from `.dat` files and fits 
 3. Go to **Utilities → Add-Ins → Scripts and Add-Ins** and enable **AirfoilFitter**
 4. Confirm dependency installation
 5. Restart Fusion
-
-### Manual Installation (MacOS)
-
-1. Download & extract the bundled MacOS Package
-2. Move the "AirfoilFitter" folder to `~/Library/Application Support/Autodesk/Autodesk Fusion 360/API/AddIns/`
-3. Run this command: `xattr -dr com.apple.quarantine "~/Library/Application Support/Autodesk/Autodesk Fusion 360/API/AddIns"`
-4. Register & run the Add-in in Fusions Script and Add-In Manager (Shift + S)
-5. Dependencies can't be updated automatically. Check for a new release if the Add-in stops working after a Fusion update
 
 ## Usage
 
