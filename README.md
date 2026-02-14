@@ -149,6 +149,9 @@ Michael Reeg
 
 ## Unreleased
 
+### v1.1.5 (2026-02-16)
+- Performance optimizations
+
 ### v1.1.4 (2026-02-10)
 - German language support
 - UI Improvements

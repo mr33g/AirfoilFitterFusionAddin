@@ -244,8 +244,9 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
                 if changed_id in refit_ids:
                     state.needs_refit = True
                 elif changed_id in update_ids:
-                    # For update-only changes, just mark that preview needs refresh
-                    pass  # Preview will be triggered automatically via executePreview
+                    # Visualization-only changes must never trigger a fit.
+                    # Clear any stale refit flag and let executePreview redraw from cache only.
+                    state.needs_refit = False
 
         except Exception as e:
             pass

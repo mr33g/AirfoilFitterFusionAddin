@@ -304,8 +304,11 @@ def run_fitter(inputs, is_preview):
         te_thickness = inputs.itemById('te_thickness').value
         te_thickness_normalized = te_thickness / chord_length
 
-        te_changed = (not state.fit_cache.get('te_applied', False) or
-                      abs(state.fit_cache.get('te_value', 0.0) - te_thickness_normalized) > 1e-9)
+        cached_te_value = state.fit_cache.get('te_value')
+        te_changed = (
+            cached_te_value is None or
+            abs(cached_te_value - te_thickness_normalized) > 1e-9
+        )
 
         if te_changed and not do_new_fit:
             # Reconstruct processor state for TE thickening
