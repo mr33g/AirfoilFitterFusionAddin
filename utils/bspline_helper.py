@@ -166,13 +166,26 @@ def build_basis_matrix(t_values: np.ndarray, knot_vector: np.ndarray, degree: in
     """
     num_points = len(t_values)
     num_basis = len(knot_vector) - degree - 1
-    basis_matrix = np.zeros((num_points, num_basis))
-    
-    for i in range(num_basis):
-        for j, t in enumerate(t_values):
-            basis_matrix[j, i] = evaluate_basis_function(i, degree, t, knot_vector)
-    
-    return basis_matrix
+    if num_points == 0 or num_basis <= 0:
+        return np.zeros((num_points, max(num_basis, 0)))
+
+    t_min = float(knot_vector[degree])
+    t_max = float(knot_vector[-(degree + 1)])
+    if t_max <= t_min:
+        t_eval = np.full_like(t_values, t_min, dtype=float)
+    else:
+        eps = 1e-12 * max(1.0, abs(t_max - t_min))
+        t_eval = np.clip(np.asarray(t_values, dtype=float), t_min, t_max - eps)
+
+    try:
+        design = interpolate.BSpline.design_matrix(t_eval, knot_vector, degree, extrapolate=False)
+        return design.toarray()
+    except Exception:
+        basis_matrix = np.zeros((num_points, num_basis))
+        for i in range(num_basis):
+            for j, t in enumerate(t_eval):
+                basis_matrix[j, i] = evaluate_basis_function(i, degree, float(t), knot_vector)
+        return basis_matrix
 
 
 def evaluate_basis_function(i: int, degree: int, t: float, knots: np.ndarray) -> float:
@@ -227,12 +240,11 @@ def compute_curvature_at_zero(control_points: np.ndarray, knot_vector: np.ndarra
     Returns:
         Curvature value at u=0
     """
-    # Create temporary curve
-    curve = interpolate.BSpline(knot_vector, control_points, degree)
-    
-    # Get derivatives at u=0
-    d1 = curve.derivative(1)(0.0)
-    d2 = curve.derivative(2)(0.0)
+    d1, d2, _ = _compute_start_derivatives(control_points, knot_vector, degree, max_order=2)
+    if d1 is None or d2 is None:
+        curve = interpolate.BSpline(knot_vector, control_points, degree)
+        d1 = curve.derivative(1)(0.0)
+        d2 = curve.derivative(2)(0.0)
     
     # Compute curvature: κ = |x'y'' - y'x''| / (x'² + y'²)^(3/2)
     cross = d1[0] * d2[1] - d1[1] * d2[0]
@@ -251,13 +263,12 @@ def compute_curvature_derivative_at_zero(control_points: np.ndarray, knot_vector
     The formula for curvature derivative is:
     κ' = [ (x'y''' - y'x''') (x'² + y'²) - 3 (x'y'' - y'x'') (x'x'' + y'y'') ] / (x'² + y'²)^(5/2)
     """
-    # Create temporary curve
-    curve = interpolate.BSpline(knot_vector, control_points, degree)
-    
-    # Get derivatives at u=0
-    d1 = curve.derivative(1)(0.0)
-    d2 = curve.derivative(2)(0.0)
-    d3 = curve.derivative(3)(0.0)
+    d1, d2, d3 = _compute_start_derivatives(control_points, knot_vector, degree, max_order=3)
+    if d1 is None or d2 is None or d3 is None:
+        curve = interpolate.BSpline(knot_vector, control_points, degree)
+        d1 = curve.derivative(1)(0.0)
+        d2 = curve.derivative(2)(0.0)
+        d3 = curve.derivative(3)(0.0)
     
     x1, y1 = d1[0], d1[1]
     x2, y2 = d2[0], d2[1]
@@ -271,6 +282,46 @@ def compute_curvature_derivative_at_zero(control_points: np.ndarray, knot_vector
     denominator = v2**(2.5)
     
     return numerator / denominator
+
+
+def _compute_start_derivatives(
+    control_points: np.ndarray,
+    knot_vector: np.ndarray,
+    degree: int,
+    max_order: int,
+) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None]:
+    """
+    Compute C'(u0), C''(u0), C'''(u0) via derivative control nets at the start knot.
+    Returns (d1, d2, d3); entries above max_order are None.
+    """
+    if max_order < 1:
+        return None, None, None
+
+    cp = np.asarray(control_points, dtype=float)
+    kv = np.asarray(knot_vector, dtype=float)
+    d = int(degree)
+    out: list[np.ndarray | None] = [None, None, None]
+
+    try:
+        for order in range(1, min(max_order, 3) + 1):
+            if d <= 0 or len(cp) < 2 or len(kv) < d + 2:
+                break
+
+            new_cp = np.zeros((len(cp) - 1, cp.shape[1]), dtype=float)
+            for i in range(len(new_cp)):
+                denom = kv[i + d + 1] - kv[i + 1]
+                if abs(denom) <= 1e-15:
+                    return None, None, None
+                new_cp[i] = d * (cp[i + 1] - cp[i]) / denom
+
+            cp = new_cp
+            kv = kv[1:-1]
+            d -= 1
+            out[order - 1] = cp[0].copy()
+    except Exception:
+        return None, None, None
+
+    return out[0], out[1], out[2]
 
 
 def compute_tangent_at_trailing_edge(control_points: np.ndarray, knot_vector: np.ndarray, degree: int) -> np.ndarray:
@@ -501,9 +552,11 @@ def calculate_bspline_fitting_error(
     if len(t_samples) > 0:
         t_samples[-1] = min(t_samples[-1], 1.0 - 1e-12)
     sampled_curve_points = bspline_curve(t_samples)
-    sampled_curve_points = sampled_curve_points[np.argsort(sampled_curve_points[:, 0])]
+    sort_idx = np.argsort(sampled_curve_points[:, 0])
+    sampled_curve_points = sampled_curve_points[sort_idx]
+    t_sorted = t_samples[sort_idx]
     tree = cKDTree(sampled_curve_points)
-    min_dists, _ = tree.query(original_data, k=1)
+    min_dists, nn_curve_idx = tree.query(original_data, k=1)
     sum_sq = float(np.sum(min_dists ** 2))
     
     if return_all:
@@ -514,10 +567,9 @@ def calculate_bspline_fitting_error(
         max_error = float(np.max(min_dists))
         max_error_idx = int(np.argmax(min_dists))
         
-        # Get the parameter value (u) corresponding to the max error index in original_data
-        # Use the current parameter exponent to match the parameterization used in fitting
-        u_params_original = create_parameter_from_x_coords(original_data, param_exponent)
-        u_at_max_error = u_params_original[max_error_idx]
+        nearest_curve_idx = int(nn_curve_idx[max_error_idx])
+        nearest_curve_idx = max(0, min(nearest_curve_idx, len(t_sorted) - 1))
+        u_at_max_error = float(t_sorted[nearest_curve_idx])
 
         return sum_sq, max_error, max_error_idx, u_at_max_error
     
@@ -553,18 +605,8 @@ def prepare_knot_insertion_with_parameter_adjustment(
         return_max_error=True,
     )
     
-    # Get x-location of max error
-    x_error = original_data[max_error_idx, 0]
-    
-    # Adjust parameter exponent based on error location
+    # Keep parameter exponent unchanged; max_error_midspan policy is used consistently.
     new_param_exponent = current_param_exponent
-    if adjust_parameter_exponent:
-        if x_error > 0.7:
-            # Error is in the tail region, increase exponent (more points near tail)
-            new_param_exponent = min(0.8, current_param_exponent + 0.1)
-        elif x_error < 0.1:
-            # Error is in the nose region, decrease exponent (more points near nose)
-            new_param_exponent = max(0.35, current_param_exponent - 0.05)
     
     # Calculate optimal knot insertion location
     new_knot = u_at_max

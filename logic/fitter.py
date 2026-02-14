@@ -188,20 +188,7 @@ def run_fitter(inputs, is_preview):
                 
                 def add_control_points(cp_diff, surface):
                     # Adding control points: insert knots at max error locations
-                    # In single span mode, we need to add to both surfaces
-                    # Insert on the surface with higher error first, then alternate
                     for i in range(cp_diff):
-                        # Determine which surface has higher error
-                        _, err_u, _, _ = bspline_helper.calculate_bspline_fitting_error(
-                            bspline.upper_curve, processor.upper_data,
-                            param_exponent=bspline.param_exponent_upper,
-                            return_max_error=True
-                        )
-                        _, err_l, _, _ = bspline_helper.calculate_bspline_fitting_error(
-                            bspline.lower_curve, processor.lower_data,
-                            param_exponent=bspline.param_exponent_lower,
-                            return_max_error=True
-                        )
                         success = bspline.insert_knot_at_max_error(surface, single_span=True)
                         if not success:
                             app.userInterface.messageBox(t("failed_insert_knot", surface=surface))
