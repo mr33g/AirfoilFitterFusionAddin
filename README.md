@@ -4,6 +4,11 @@ A Fusion add-in that imports airfoil coordinate data from `.dat` files and fits 
 
 ## Installation
 
+## The Installer is now distributed via the Autodesk App Store.
+
+Please download the installer here:
+https://apps.autodesk.com/FUSION/en/Detail/Index?id=7312110669169312529&appLang=en&os=Win64
+
 ### MSI Installer (Windows)
 
 - **File**: `AirfoilFitterAddin.msi`
