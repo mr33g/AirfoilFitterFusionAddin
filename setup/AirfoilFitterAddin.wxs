@@ -1,6 +1,9 @@
 <?ifndef Version ?>
   <?define Version = "1.1.0" ?>
 <?endif?>
+<?ifndef PackageContentsSource ?>
+  <?define PackageContentsSource = "PackageContents.xml" ?>
+<?endif?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
@@ -57,7 +60,7 @@
         <!-- Components -->
         <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
             <Component Id="PackageContentsXml" Guid="B1C2D3E4-F5A6-7890-ABCD-EF1234567891">
-                <File Id="PackageContents.xml" Source="PackageContents.xml" KeyPath="yes" />
+                <File Id="PackageContents.xml" Source="$(var.PackageContentsSource)" KeyPath="yes" />
                 <RegistryValue Root="HKCU" Key="Software\FusionAddins\AirfoilFitter" Name="installed" Type="integer" Value="1" Action="write" />
                 <!-- Store actual paths in registry for uninstall to find -->
                 <RegistryValue Root="HKCU" Key="Software\FusionAddins\AirfoilFitter" Name="InstallPath" Type="string" Value="[INSTALLFOLDER]" Action="write" />
