@@ -383,8 +383,22 @@ def run_fitter(inputs, is_preview):
             sketch_name = os.path.splitext(os.path.basename(file_path))[0] if file_path else "Fitted Airfoil"
             parent_comp = selected_line.parentSketch.parentComponent
             
+            def get_reference_plane_safe(sketch_obj):
+                try:
+                    return sketch_obj.referencePlane
+                except Exception as ex:
+                    app.log(f"Warning: Failed to resolve sketch.referencePlane: {ex}")
+                    return None
+
+            fallback_to_source_sketch = False
+            source_ref_plane = get_reference_plane_safe(selected_line.parentSketch)
+
             if state.rotation_state == 0:
-                target_plane = selected_line.parentSketch.referencePlane
+                target_plane = source_ref_plane
+                if not target_plane:
+                    # Some sketches can exist with an invalid internal referencePlane path.
+                    # In that case, avoid crashing and write directly into the source sketch.
+                    fallback_to_source_sketch = True
             else:
                 # Check if the rotated plane matches a standard origin plane                                                                                                                  
                 root_comp = design.rootComponent                                                                                                                                              
@@ -402,12 +416,31 @@ def run_fitter(inputs, is_preview):
                 if standard_plane:                                                                                                                                                            
                     target_plane = standard_plane                                                                                                                                             
                 else:                                                                                                                                                                         
-                    plane_input = parent_comp.constructionPlanes.createInput()                                                                                                                
-                    plane_input.setByAngle(selected_line, adsk.core.ValueInput.createByReal(-theta), selected_line.parentSketch.referencePlane)                                               
-                    target_plane = parent_comp.constructionPlanes.add(plane_input)                                                                                                            
-                    target_plane.name = sketch_name                                                                                                                                           
-                                                                              
-            if is_editable:
+                    if source_ref_plane:
+                        plane_input = parent_comp.constructionPlanes.createInput()                                                                                                                
+                        plane_input.setByAngle(selected_line, adsk.core.ValueInput.createByReal(-theta), source_ref_plane)
+                        target_plane = parent_comp.constructionPlanes.add(plane_input)                                                                                                            
+                        target_plane.name = sketch_name
+                    else:
+                        # Without a valid source reference plane, angle-based rotated plane creation
+                        # can fail with InternalValidationError. Do not silently flatten rotated geometry.
+                        app.log("Warning: Missing source referencePlane for rotated output; cannot create rotated plane.")
+                        app.userInterface.messageBox("Could not create a rotated target plane from the selected sketch. Try a chord line from a sketch on a stable construction/origin plane.")
+                        return False
+                                                                               
+            if fallback_to_source_sketch:
+                target_sketch = selected_line.parentSketch
+                target_sketch.is3D = True
+                u_final = transform_pts(upper_cp, target_sketch)
+                l_final = transform_pts(lower_cp, target_sketch)
+                create_fusion_spline(target_sketch, u_final, state.fit_cache['upper_knots'], state.fit_cache['degree_u'])
+                create_fusion_spline(target_sketch, l_final, state.fit_cache['lower_knots'], state.fit_cache['degree_l'])
+                if not is_sharp:
+                    target_sketch.sketchCurves.sketchLines.addByTwoPoints(
+                        adsk.core.Point3D.create(u_final[-1,0], u_final[-1,1], 0),
+                        adsk.core.Point3D.create(l_final[-1,0], l_final[-1,1], 0)
+                    )
+            elif is_editable:
                 # Create a temporary sketch on the target plane to use modelToSketchSpace for accurate transformation
                 temp_sketch = parent_comp.sketches.add(target_plane)
                 u_dxf = transform_pts(upper_cp, temp_sketch); l_dxf = transform_pts(lower_cp, temp_sketch)
