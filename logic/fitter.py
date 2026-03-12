@@ -383,50 +383,97 @@ def run_fitter(inputs, is_preview):
             sketch_name = os.path.splitext(os.path.basename(file_path))[0] if file_path else "Fitted Airfoil"
             parent_comp = selected_line.parentSketch.parentComponent
             
-            def get_reference_plane_safe(sketch_obj):
+            def create_coplanar_plane_from_sketch(sketch_obj, plane_name=None):
                 try:
-                    return sketch_obj.referencePlane
+                    plane_input = parent_comp.constructionPlanes.createInput()
+                    if sketch_obj.assemblyContext:
+                        plane_input.occurrenceForCreation = sketch_obj.assemblyContext
+                    plane_input.setByOffset(sketch_obj, adsk.core.ValueInput.createByReal(0))
+                    plane = parent_comp.constructionPlanes.add(plane_input)
+                    try:
+                        plane.isLightBulbOn = False
+                    except Exception:
+                        pass
+                    if plane_name:
+                        plane.name = plane_name
+                    return plane
                 except Exception as ex:
-                    app.log(f"Warning: Failed to resolve sketch.referencePlane: {ex}")
+                    app.log(f"Warning: Failed to create coplanar plane from sketch: {ex}")
                     return None
 
+            def delete_plane_safe(plane_obj, description):
+                if not plane_obj:
+                    return
+                try:
+                    plane_obj.deleteMe()
+                except Exception as ex:
+                    app.log(f"Warning: Failed to delete {description}: {ex}")
+
+            def add_sketch_on_plane(target_plane_obj):
+                sketches = parent_comp.sketches
+                previous_occurrence = None
+                try:
+                    if hasattr(sketches, 'occurrenceForCreation'):
+                        previous_occurrence = sketches.occurrenceForCreation
+                        sketches.occurrenceForCreation = selected_line.parentSketch.assemblyContext
+                    return sketches.add(target_plane_obj)
+                finally:
+                    if hasattr(sketches, 'occurrenceForCreation'):
+                        sketches.occurrenceForCreation = previous_occurrence
+
             fallback_to_source_sketch = False
-            source_ref_plane = get_reference_plane_safe(selected_line.parentSketch)
+            source_plane = None
+            target_plane = None
+            source_plane_can_be_deleted = False
 
             if state.rotation_state == 0:
-                target_plane = source_ref_plane
-                if not target_plane:
-                    # Some sketches can exist with an invalid internal referencePlane path.
-                    # In that case, avoid crashing and write directly into the source sketch.
+                if is_editable:
+                    source_plane = create_coplanar_plane_from_sketch(selected_line.parentSketch)
+                    if source_plane:
+                        target_plane = source_plane
+                        source_plane_can_be_deleted = True
+                    else:
+                        app.log("Warning: Missing coplanar source plane for editable output on the selected sketch.")
+                        app.userInterface.messageBox("Could not create a target plane for editable spline import from the selected sketch.")
+                        return False
+                else:
                     fallback_to_source_sketch = True
             else:
-                # Check if the rotated plane matches a standard origin plane                                                                                                                  
-                root_comp = design.rootComponent                                                                                                                                              
-                tol = 1e-6                                                                                                                                                                    
-                standard_plane = None                                                                                                                                                         
-                
-                # z_axis_world is the normal of the rotated plane                                                                                                                             
-                if abs(abs(z_axis_world.z) - 1.0) < tol:                                                                                                                                      
-                    standard_plane = root_comp.xYConstructionPlane                                                                                                                            
-                elif abs(abs(z_axis_world.y) - 1.0) < tol:                                                                                                                                    
-                    standard_plane = root_comp.xZConstructionPlane                                                                                                                            
-                elif abs(abs(z_axis_world.x) - 1.0) < tol:                                                                                                                                    
-                    standard_plane = root_comp.yZConstructionPlane                                                                                                                            
-      
-                if standard_plane:                                                                                                                                                            
-                    target_plane = standard_plane                                                                                                                                             
-                else:                                                                                                                                                                         
-                    if source_ref_plane:
-                        plane_input = parent_comp.constructionPlanes.createInput()                                                                                                                
-                        plane_input.setByAngle(selected_line, adsk.core.ValueInput.createByReal(-theta), source_ref_plane)
-                        target_plane = parent_comp.constructionPlanes.add(plane_input)                                                                                                            
-                        target_plane.name = sketch_name
+                source_plane = create_coplanar_plane_from_sketch(selected_line.parentSketch)
+                if source_plane:
+                    root_comp = design.rootComponent
+                    tol = 1e-6
+                    standard_plane = None
+                    point_on_plane = start_pt_world
+
+                    # A rotated plane only coincides with an origin plane if both its normal
+                    # and its offset from the origin match that plane.
+                    if abs(abs(z_axis_world.z) - 1.0) < tol and abs(point_on_plane.z) < tol:
+                        standard_plane = root_comp.xYConstructionPlane
+                    elif abs(abs(z_axis_world.y) - 1.0) < tol and abs(point_on_plane.y) < tol:
+                        standard_plane = root_comp.xZConstructionPlane
+                    elif abs(abs(z_axis_world.x) - 1.0) < tol and abs(point_on_plane.x) < tol:
+                        standard_plane = root_comp.yZConstructionPlane
+
+                    if standard_plane:
+                        target_plane = standard_plane
+                        source_plane_can_be_deleted = True
                     else:
-                        # Without a valid source reference plane, angle-based rotated plane creation
-                        # can fail with InternalValidationError. Do not silently flatten rotated geometry.
-                        app.log("Warning: Missing source referencePlane for rotated output; cannot create rotated plane.")
-                        app.userInterface.messageBox("Could not create a rotated target plane from the selected sketch. Try a chord line from a sketch on a stable construction/origin plane.")
-                        return False
+                        plane_input = parent_comp.constructionPlanes.createInput()
+                        if selected_line.assemblyContext:
+                            plane_input.occurrenceForCreation = selected_line.assemblyContext
+                        plane_input.setByAngle(selected_line, adsk.core.ValueInput.createByReal(-theta), source_plane)
+                        target_plane = parent_comp.constructionPlanes.add(plane_input)
+                        try:
+                            target_plane.isLightBulbOn = False
+                        except Exception:
+                            pass
+                        target_plane.name = sketch_name
+                        source_plane_can_be_deleted = True
+                else:
+                    app.log("Warning: Missing coplanar source plane for rotated output; cannot create rotated plane.")
+                    app.userInterface.messageBox("Could not create a target plane from the selected sketch. Try a different chord line or sketch.")
+                    return False
                                                                                
             if fallback_to_source_sketch:
                 target_sketch = selected_line.parentSketch
@@ -440,9 +487,10 @@ def run_fitter(inputs, is_preview):
                         adsk.core.Point3D.create(u_final[-1,0], u_final[-1,1], 0),
                         adsk.core.Point3D.create(l_final[-1,0], l_final[-1,1], 0)
                     )
+                delete_plane_safe(source_plane, "temporary coplanar plane")
             elif is_editable:
                 # Create a temporary sketch on the target plane to use modelToSketchSpace for accurate transformation
-                temp_sketch = parent_comp.sketches.add(target_plane)
+                temp_sketch = add_sketch_on_plane(target_plane)
                 u_dxf = transform_pts(upper_cp, temp_sketch); l_dxf = transform_pts(lower_cp, temp_sketch)
                 # If airfoil is flipped, swap the chord start and end points
                 if state.flip_orientation:
@@ -452,18 +500,22 @@ def run_fitter(inputs, is_preview):
                     chord_start_aligned = chord_start_world_original
                     chord_end_aligned = chord_end_world_original
                 target_sketch = import_splines_via_dxf(
-                    temp_sketch, u_dxf, state.fit_cache['upper_knots'], state.fit_cache['degree_u'], 
+                    temp_sketch, target_plane, u_dxf, state.fit_cache['upper_knots'], state.fit_cache['degree_u'], 
                     l_dxf, state.fit_cache['lower_knots'], state.fit_cache['degree_l'], is_sharp,
                     chord_start_aligned, chord_end_aligned, sketch_name=sketch_name
                 )
                 if temp_sketch != target_sketch: temp_sketch.deleteMe()
+                if source_plane and source_plane_can_be_deleted:
+                    delete_plane_safe(source_plane, "temporary coplanar plane")
             else:
-                target_sketch = parent_comp.sketches.add(target_plane); target_sketch.name = sketch_name
+                target_sketch = add_sketch_on_plane(target_plane); target_sketch.name = sketch_name
                 u_final = transform_pts(upper_cp, target_sketch); l_final = transform_pts(lower_cp, target_sketch)
                 create_fusion_spline(target_sketch, u_final, state.fit_cache['upper_knots'], state.fit_cache['degree_u'])
                 create_fusion_spline(target_sketch, l_final, state.fit_cache['lower_knots'], state.fit_cache['degree_l'])
                 if not is_sharp:
                     target_sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(u_final[-1,0], u_final[-1,1], 0), adsk.core.Point3D.create(l_final[-1,0], l_final[-1,1], 0))
+                if source_plane and source_plane_can_be_deleted:
+                    delete_plane_safe(source_plane, "temporary coplanar plane")
         
                     
         return True

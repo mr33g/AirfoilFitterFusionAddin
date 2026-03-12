@@ -42,7 +42,7 @@ def create_fusion_spline(sketch, control_points, knots, degree, is_closed=False)
     except Exception as e:
         raise RuntimeError(f"NURBS geometry creation failed: {str(e)}")
 
-def import_splines_via_dxf(sketch, upper_cp, upper_knots, upper_degree, 
+def import_splines_via_dxf(sketch, target_plane, upper_cp, upper_knots, upper_degree, 
                            lower_cp, lower_knots, lower_degree, is_sharp_te, 
                            chord_start_world, chord_end_world, sketch_name="Fitted Airfoil"):
     """
@@ -51,7 +51,8 @@ def import_splines_via_dxf(sketch, upper_cp, upper_knots, upper_degree,
     chord start point and rotating if needed to align the trailing edge with the chord end point.
     
     Args:
-        sketch: The target sketch for import
+        sketch: Temporary sketch used for coordinate conversion and component lookup
+        target_plane: Planar entity to create the imported sketch on
         upper_cp, lower_cp: Control points for upper and lower surfaces
         upper_knots, lower_knots: Knot vectors
         upper_degree, lower_degree: Degrees of the splines
@@ -91,7 +92,7 @@ def import_splines_via_dxf(sketch, upper_cp, upper_knots, upper_degree,
         # Import to Fusion
         # Note: DXF2DImportOptions requires a Component as the target.
         # It will create a NEW sketch on the specified reference plane.
-        dxf_options = import_manager.createDXF2DImportOptions(dxf_path, sketch.referencePlane)
+        dxf_options = import_manager.createDXF2DImportOptions(dxf_path, target_plane)
         
         # Use isCreateControlPointSplines to ensure they are editable control point splines
         if hasattr(dxf_options, 'isCreateControlPointSplines'):
@@ -113,19 +114,34 @@ def import_splines_via_dxf(sketch, upper_cp, upper_knots, upper_degree,
         if sketches.count > count_before:
             new_sketch = sketches.item(sketches.count - 1)
             new_sketch.name = sketch_name
-            
-            # Show the control polygon for all imported splines
+
+            control_spline_count = new_sketch.sketchCurves.sketchControlPointSplines.count
+            fitted_spline_count = new_sketch.sketchCurves.sketchFittedSplines.count
+            fixed_spline_count = new_sketch.sketchCurves.sketchFixedSplines.count
+
+            # Show the control polygon for any spline type the import created.
+            for spline in new_sketch.sketchCurves.sketchControlPointSplines:
+                try:
+                    spline.isControlPolygonVisible = True
+                except Exception:
+                    pass
             for spline in new_sketch.sketchCurves.sketchFittedSplines:
                 try:
                     spline.isControlPolygonVisible = True
-                except:
+                except Exception:
                     pass
             for spline in new_sketch.sketchCurves.sketchFixedSplines:
                 try:
                     spline.isControlPolygonVisible = True
-                except:
+                except Exception:
                     pass
-            
+
+            if control_spline_count < 2:
+                raise RuntimeError(
+                    "DXF import created non-adjustable splines "
+                    f"(control={control_spline_count}, fitted={fitted_spline_count}, fixed={fixed_spline_count})."
+                )
+
             _align_airfoil_with_chord(new_sketch, chord_start_world, chord_end_world)
         else:
             # If no new sketch was created, log a warning
