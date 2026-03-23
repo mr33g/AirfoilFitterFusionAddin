@@ -56,11 +56,11 @@ STRINGS = {
     },
     "de": {
         "deps_missing_msg": (
-            "AirfoilFitter ben\u00f6tigt externe Bibliotheken (numpy, scipy, ezdxf).\n\n"
+            "AirfoilFitter benoetigt externe Bibliotheken (numpy, scipy, ezdxf).\n\n"
             "Diese wurden im Ordner 'lib' nicht gefunden.\n"
-            "M\u00f6chten Sie eine lokale Installation im Add-in-Ordner versuchen?"
+            "Moechten Sie eine lokale Installation im Add-in-Ordner versuchen?"
         ),
-        "deps_missing_title": "Abh\u00e4ngigkeiten fehlen",
+        "deps_missing_title": "Abhaengigkeiten fehlen",
         "deps_install_started": (
             "Die Installation wurde in einem separaten Fenster gestartet.\n\n"
             "Bitte warten Sie, bis sie abgeschlossen ist, und starten Sie Fusion dann neu."
@@ -68,22 +68,22 @@ STRINGS = {
         "deps_install_complete": "Installation abgeschlossen. Bitte Fusion neu starten.",
         "deps_install_failed": (
             "Fehlgeschlagene Installation: {error}\n\n"
-            "Bitte installieren Sie die Abh\u00e4ngigkeiten manuell."
+            "Bitte installieren Sie die Abhaengigkeiten manuell."
         ),
-        "cmd_button_name": "Angepasstes Profil einf\u00fcgen",
+        "cmd_button_name": "Angepasstes Profil einfuegen",
         "cmd_button_desc": "Spline an eine .dat-Profildatei im Selig- oder Lednicer-Format anpassen",
         "failed_to_start": "Start fehlgeschlagen:\n{error}",
-        "select_chord_line": "Sehnenlinie ausw\u00e4hlen",
-        "select_chord_line_help": "W\u00e4hlen Sie eine Linie aus",
-        "select_airfoil": "Datei ausw\u00e4hlen",
-        "selected_file": "Ausgew\u00e4hlte Datei",
+        "select_chord_line": "Sehnenlinie auswaehlen",
+        "select_chord_line_help": "Waehlen Sie eine Linie aus",
+        "select_airfoil": "Datei auswaehlen",
+        "selected_file": "Ausgewaehlte Datei",
         "fitter_settings": "Fitter Einstellungen",
         "cp_count_upper": "Punkte Oberseite",
         "cp_count_lower": "Punkte Unterseite",
-        "reset": "Zur\u00fccksetzen",
-        "smoothness_penalty": "Gl\u00e4ttung",
-        "le_continuity": "Kontinuit\u00e4t",
-        "enforce_te_tangency": "Tangentialit\u00e4t Endleiste",
+        "reset": "Zuruecksetzen",
+        "smoothness_penalty": "Glaettung",
+        "le_continuity": "Kontinuitaet",
+        "enforce_te_tangency": "Tangentialitaet Endleiste",
         "import_settings": "Import Einstellungen",
         "turn_90": "Um 90\u00b0 drehen",
         "flip": "Spiegeln",
@@ -95,15 +95,65 @@ STRINGS = {
         "show_input_data": "Rohdaten anzeigen",
         "ui_creation_failed": "UI-Erstellung fehlgeschlagen:\n{error}",
         "command_created_failed": "Befehlserstellung fehlgeschlagen:\n{error}",
-        "execution_error": "Ausf\u00fchrungsfehler:\n{error}",
+        "execution_error": "Ausfuehrungsfehler:\n{error}",
         "file_filter": "Profil (*.dat);;Alle Dateien (*.*)",
-        "failed_load_airfoil_data": "Profildaten konnten nicht geladen werden. Bitte Dateipfad pr\u00fcfen und erneut versuchen.",
-        "failed_fit_airfoil": "Profilanpassung fehlgeschlagen. Bitte Eingabeparameter pr\u00fcfen und erneut versuchen.",
-        "failed_insert_knot": "Knoten konnte auf der {surface}-Fl\u00e4che nicht eingef\u00fcgt werden.",
-        "failed_refit_surface": "Neu-Anpassung der {surface}-Fl\u00e4che mit reduzierter Kontrollpunktzahl fehlgeschlagen.",
-        "generic_error": "Ein Fehler ist aufgetreten. Bitte pr\u00fcfen Sie das Protokoll f\u00fcr Details.",
+        "failed_load_airfoil_data": "Profildaten konnten nicht geladen werden. Bitte Dateipfad pruefen und erneut versuchen.",
+        "failed_fit_airfoil": "Profilanpassung fehlgeschlagen. Bitte Eingabeparameter pruefen und erneut versuchen.",
+        "failed_insert_knot": "Knoten konnte auf der {surface}-Flaeche nicht eingefuegt werden.",
+        "failed_refit_surface": "Neu-Anpassung der {surface}-Flaeche mit reduzierter Kontrollpunktzahl fehlgeschlagen.",
+        "generic_error": "Ein Fehler ist aufgetreten. Bitte pruefen Sie das Protokoll fuer Details.",
     },
+    "it": {
+        "deps_missing_msg": (
+            "AirfoilFitter richiede librerie esterne (numpy, scipy, ezdxf).\n\n"
+            "Non sono presenti nella cartella 'lib'.\n"
+            "Vuoi provare a installarle automaticamente nella cartella dell'add-in?"
+        ),
+        "deps_missing_title": "Dipendenze mancanti",
+        "deps_install_started": (
+            "L'installazione e' stata avviata in una nuova finestra.\n\n"
+            "Attendi che venga completata, poi riavvia Fusion."
+        ),
+        "deps_install_complete": "Installazione completata. Riavvia Fusion.",
+        "deps_install_failed": (
+            "Installazione non riuscita: {error}\n\n"
+            "Installa le dipendenze manualmente."
+        ),
+        "cmd_button_name": "Inserisci profilo adattato",
+        "cmd_button_desc": "Adatta una spline a un profilo .dat in formato Selig o Lednicer",
+        "failed_to_start": "Avvio non riuscito:\n{error}",
+        "select_chord_line": "Linea di corda",
+        "select_chord_line_help": "Seleziona una linea di costruzione",
+        "select_airfoil": "File di input",
+        "selected_file": "File selezionato",
+        "fitter_settings": "Impostazioni del fitting",
+        "cp_count_upper": "Punti superiori",
+        "cp_count_lower": "Punti inferiori",
+        "reset": "Reimposta",
+        "smoothness_penalty": "Uniformita'",
+        "le_continuity": "Continuita'",
+        "enforce_te_tangency": "Tangenza del bordo d'uscita",
+        "import_settings": "Impostazioni di importazione",
+        "turn_90": "Ruota di 90\u00b0",
+        "flip": "Specchia",
+        "te_thickness": "Spessore del bordo d'uscita",
+        "keep_adjustable": "Mantieni regolabile",
+        "curvature_comb": "Pettine di curvatura",
+        "comb_scale": "Scala del pettine",
+        "comb_density": "Densita' del pettine",
+        "show_input_data": "Mostra dati di input",
+        "ui_creation_failed": "Creazione dell'interfaccia non riuscita:\n{error}",
+        "command_created_failed": "Creazione del comando non riuscita:\n{error}",
+        "execution_error": "Errore di esecuzione:\n{error}",
+        "file_filter": "Profili (*.dat);;Tutti i file (*.*)",
+        "failed_load_airfoil_data": "Impossibile caricare i dati del profilo. Controlla il percorso del file e riprova.",
+        "failed_fit_airfoil": "Impossibile adattare il profilo. Controlla i parametri di input e riprova.",
+        "failed_insert_knot": "Impossibile inserire il nodo sulla superficie {surface}.",
+        "failed_refit_surface": "Impossibile riadattare la superficie {surface} con un numero ridotto di punti di controllo.",
+        "generic_error": "Si e' verificato un errore. Controlla il log per maggiori dettagli.",
+    }
 }
+
 
 def _enum_name_for_value(enum_type, value):
     try:
@@ -118,6 +168,7 @@ def _enum_name_for_value(enum_type, value):
     except Exception:
         pass
     return None
+
 
 def _extract_language_code(value) -> str | None:
     if value is None:
@@ -135,11 +186,15 @@ def _extract_language_code(value) -> str | None:
     text = str(value).strip().lower()
     if not text:
         return None
+    text = text.replace("_", "-")
     if text.startswith("de") or "german" in text or "deutsch" in text:
         return "de"
+    if text.startswith("it") or "italian" in text or "italiano" in text:
+        return "it"
     if text.startswith("en") or "english" in text:
         return "en"
     return None
+
 
 def _get_fusion_language_code() -> str | None:
     try:
@@ -171,6 +226,7 @@ def _get_fusion_language_code() -> str | None:
             return code
     return None
 
+
 def get_language_code() -> str:
     global _LANG_CACHE
     if _LANG_CACHE:
@@ -178,6 +234,7 @@ def get_language_code() -> str:
     code = _get_fusion_language_code()
     _LANG_CACHE = code if code in STRINGS else "en"
     return _LANG_CACHE
+
 
 def t(key: str, **kwargs) -> str:
     lang = get_language_code()
