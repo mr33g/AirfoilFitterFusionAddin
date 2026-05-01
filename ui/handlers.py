@@ -8,6 +8,19 @@ from logic.fitter import run_fitter
 from core import config
 from utils.i18n import t
 
+def _set_selected_file_button_text(inputs, file_path: str) -> None:
+    try:
+        select_file = inputs.itemById('select_file')
+        if not select_file:
+            return
+        if file_path:
+            select_file.text = os.path.splitext(os.path.basename(file_path))[0]
+        else:
+            select_file.text = t("select_airfoil")
+    except Exception:
+        pass
+
+
 def update_cp_count_labels(inputs):
     """Update the labels for CP count controls with current values."""
     try:
@@ -45,7 +58,7 @@ def reset_fitter_settings_to_defaults(inputs, resetAll=False):
             continuity_dropdown = inputs.itemById('continuity_level')
             if continuity_dropdown:
                 for i in range(continuity_dropdown.listItems.count):
-                    continuity_dropdown.listItems.item(i).isSelected = (i == 0)
+                    continuity_dropdown.listItems.item(i).isSelected = (i == 1)
             
             # Reset TE tangency enforcement
             enforce_te_tangent = inputs.itemById('enforce_te_tangency')
@@ -121,6 +134,8 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
                 if dlg.showOpen() == adsk.core.DialogResults.DialogOK:
                     file_input = inputs.itemById('file_path')
                     file_input.value = dlg.filename
+                    _set_selected_file_button_text(inputs, dlg.filename)
+                    state.fit_cache['selected_file_path'] = dlg.filename
                     # file_input.isVisible = True
                     
                     # Reset fitter settings to defaults when a new file is selected

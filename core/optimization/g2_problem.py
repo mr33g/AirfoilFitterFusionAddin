@@ -9,6 +9,7 @@ from core.optimization.continuity_metrics import (
     start_derivative_weights,
 )
 from core.optimization.control_point_mapping import OptimizationLayout, build_bounds, smoothing_weights
+from core.optimization.fit_metrics import vertical_distance_and_grad
 from utils import bspline_helper
 
 
@@ -16,8 +17,6 @@ def build_g2_problem(
     *,
     upper_data: np.ndarray,
     lower_data: np.ndarray,
-    basis_upper: np.ndarray,
-    basis_lower: np.ndarray,
     upper_knot_vector: np.ndarray,
     lower_knot_vector: np.ndarray,
     degree_upper: int,
@@ -39,6 +38,47 @@ def build_g2_problem(
 
     smooth_w_upper = smoothing_weights(num_cp_upper)
     smooth_w_lower = smoothing_weights(num_cp_lower)
+    vertical_eval_state = {
+        "last_x": None,
+        "last_error_upper": 0.0,
+        "last_error_lower": 0.0,
+        "last_grad_upper": None,
+        "last_grad_lower": None,
+        "last_u_upper": None,
+        "last_u_lower": None,
+    }
+
+    def ensure_vertical_eval(cp_upper: np.ndarray, cp_lower: np.ndarray, x: np.ndarray) -> None:
+        last_x = vertical_eval_state["last_x"]
+        x_arr = np.asarray(x, dtype=float)
+        if last_x is not None and np.array_equal(np.asarray(last_x, dtype=float), x_arr):
+            return
+
+        err_u, grad_u, solved_u_upper, _ = vertical_distance_and_grad(
+            upper_data,
+            cp_upper,
+            upper_knot_vector,
+            degree_upper,
+            initial_u=np.asarray(vertical_eval_state["last_u_upper"], dtype=float)
+            if vertical_eval_state["last_u_upper"] is not None
+            else None,
+        )
+        err_l, grad_l, solved_u_lower, _ = vertical_distance_and_grad(
+            lower_data,
+            cp_lower,
+            lower_knot_vector,
+            degree_lower,
+            initial_u=np.asarray(vertical_eval_state["last_u_lower"], dtype=float)
+            if vertical_eval_state["last_u_lower"] is not None
+            else None,
+        )
+        vertical_eval_state["last_x"] = x_arr.copy()
+        vertical_eval_state["last_error_upper"] = float(err_u)
+        vertical_eval_state["last_error_lower"] = float(err_l)
+        vertical_eval_state["last_grad_upper"] = grad_u
+        vertical_eval_state["last_grad_lower"] = grad_l
+        vertical_eval_state["last_u_upper"] = solved_u_upper
+        vertical_eval_state["last_u_lower"] = solved_u_lower
 
     eval_cache: dict[str, np.ndarray | None] = {
         "x": None,
@@ -70,12 +110,9 @@ def build_g2_problem(
 
     def objective(vars):
         cp_upper, cp_lower = cached_control_points(vars)
-
-        fitted_upper = basis_upper @ cp_upper
-        fitted_lower = basis_lower @ cp_lower
-
-        error_upper = float(np.sum((upper_data - fitted_upper) ** 2))
-        error_lower = float(np.sum((lower_data - fitted_lower) ** 2))
+        ensure_vertical_eval(cp_upper, cp_lower, np.asarray(vars, dtype=float))
+        error_upper = float(vertical_eval_state["last_error_upper"])
+        error_lower = float(vertical_eval_state["last_error_lower"])
 
         smoothing_penalty = 0.0
         if smooth_w_upper.size:
@@ -89,11 +126,9 @@ def build_g2_problem(
 
     def objective_jac(vars):
         cp_upper, cp_lower = cached_control_points(vars)
-
-        fitted_upper = basis_upper @ cp_upper
-        fitted_lower = basis_lower @ cp_lower
-        grad_cp_upper = 2.0 * (basis_upper.T @ (fitted_upper - upper_data))
-        grad_cp_lower = 2.0 * (basis_lower.T @ (fitted_lower - lower_data))
+        ensure_vertical_eval(cp_upper, cp_lower, np.asarray(vars, dtype=float))
+        grad_cp_upper = np.asarray(vertical_eval_state["last_grad_upper"], dtype=float).copy()
+        grad_cp_lower = np.asarray(vertical_eval_state["last_grad_lower"], dtype=float).copy()
 
         if smooth_w_upper.size:
             diff_upper = np.diff(cp_upper, n=2, axis=0)
@@ -139,6 +174,29 @@ def build_g2_problem(
         if weights_upper_3 is None or weights_lower_3 is None:
             return finite_diff_jacobian(curvature_derivative_constraint, vars)
         return layout.gradients_to_vars(grad_upper, -grad_lower)
+
+    def append_monotonic_x_constraints(is_upper: bool, num_cp: int) -> None:
+        for i in range(1, num_cp - 1):
+            idx_current = layout.var_index(is_upper, i, 0)
+            idx_next = layout.var_index(is_upper, i + 1, 0)
+            if idx_current is None and idx_next is None:
+                continue
+
+            def monotonic_fun(vars, is_upper_local=is_upper, i_local=i):
+                cp_upper, cp_lower = cached_control_points(vars)
+                cp = cp_upper if is_upper_local else cp_lower
+                return float(cp[i_local + 1, 0] - cp[i_local, 0])
+
+            def monotonic_jac(vars, idx_current_local=idx_current, idx_next_local=idx_next):
+                _ = vars
+                jac = np.zeros(num_vars, dtype=float)
+                if idx_next_local is not None:
+                    jac[idx_next_local] += 1.0
+                if idx_current_local is not None:
+                    jac[idx_current_local] -= 1.0
+                return jac
+
+            constraints.append({"type": "ineq", "fun": monotonic_fun, "jac": monotonic_jac})
 
     constraints = [
         {"type": "eq", "fun": curvature_constraint, "jac": curvature_constraint_jac},
@@ -239,6 +297,9 @@ def build_g2_problem(
                 {"type": "eq", "fun": te_tangent_constraint_lower, "jac": te_tangent_constraint_lower_jac},
             ]
         )
+
+    append_monotonic_x_constraints(True, num_cp_upper)
+    append_monotonic_x_constraints(False, num_cp_lower)
 
     n_free_upper = num_cp_upper - 3
     n_free_lower = num_cp_lower - 3

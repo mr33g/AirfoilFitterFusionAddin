@@ -1,5 +1,6 @@
 import adsk.core, adsk.fusion
 import traceback
+import os
 from logic import state
 from core import config
 from utils.i18n import t
@@ -13,7 +14,10 @@ def create_ui_inputs(inputs):
         line_select.setSelectionLimits(1, 1)
         
         # 2. File Selection
-        inputs.addBoolValueInput('select_file', t("select_airfoil"), False, '', True)
+        select_file = inputs.addBoolValueInput('select_file', t("select_airfoil"), False, '', True)
+        current_file_path = state.fit_cache.get('selected_file_path', '') if isinstance(state.fit_cache, dict) else ''
+        if current_file_path:
+            select_file.text = os.path.splitext(os.path.basename(current_file_path))[0]
         file_path_input = inputs.addStringValueInput('file_path', t("selected_file"), '')
         file_path_input.isReadOnly = True
         file_path_input.isVisible = False
@@ -51,7 +55,7 @@ def create_ui_inputs(inputs):
         continuity_dropdown.listItems.add('G1', False)
         continuity_dropdown.listItems.add('G2', False)
         continuity_dropdown.listItems.add('G3', False)
-        continuity_dropdown.listItems[0].isSelected = True  # G1 selected by default
+        continuity_dropdown.listItems[1].isSelected = True  # G2 selected by default
         continuity_dropdown.isVisible = False
         
         te_tan = groupFitterSettingsChildInputs.addBoolValueInput('enforce_te_tangency', t("enforce_te_tangency"), True, '', False)
