@@ -1,174 +1,8 @@
 from __future__ import annotations
 
 import numpy as np
-from scipy import optimize
 
-from core.optimization.control_point_mapping import smoothing_weights
-from core.optimization.fit_metrics import vertical_distance_and_grad
 from utils import bspline_helper
-
-
-def _pack_control_points(cp: np.ndarray) -> np.ndarray:
-    num_cp = int(cp.shape[0])
-    out = np.zeros(2 * num_cp, dtype=float)
-    out[:num_cp] = cp[:, 0]
-    out[num_cp:] = cp[:, 1]
-    return out
-
-
-def _unpack_control_points(vars_flat: np.ndarray, num_cp: int) -> np.ndarray:
-    x = np.asarray(vars_flat[:num_cp], dtype=float)
-    y = np.asarray(vars_flat[num_cp:], dtype=float)
-    return np.column_stack((x, y))
-
-
-def _build_linear_g1_guess(
-    proc,
-    basis_matrix: np.ndarray,
-    surface_data: np.ndarray,
-    num_control_points: int,
-    te_tangent_vector: np.ndarray | None,
-    te_point: np.ndarray | None,
-) -> np.ndarray:
-    """Linear constrained initializer for the nonlinear solve."""
-    A_data = np.zeros((2 * len(surface_data), 2 * num_control_points))
-    b_data = np.zeros(2 * len(surface_data))
-
-    A_data[: len(surface_data), :num_control_points] = basis_matrix
-    b_data[: len(surface_data)] = surface_data[:, 0]
-
-    A_data[len(surface_data) :, num_control_points:] = basis_matrix
-    b_data[len(surface_data) :] = surface_data[:, 1]
-
-    constraints = []
-    constraint_rhs = []
-
-    row = np.zeros(2 * num_control_points)
-    row[0] = 1.0
-    constraints.append(row)
-    constraint_rhs.append(0.0)
-
-    row = np.zeros(2 * num_control_points)
-    row[num_control_points] = 1.0
-    constraints.append(row)
-    constraint_rhs.append(0.0)
-
-    row = np.zeros(2 * num_control_points)
-    row[1] = 1.0
-    constraints.append(row)
-    constraint_rhs.append(0.0)
-
-    if te_tangent_vector is not None:
-        row = np.zeros(2 * num_control_points)
-        row[num_control_points - 1] = -te_tangent_vector[1]
-        row[2 * num_control_points - 1] = te_tangent_vector[0]
-        row[num_control_points - 2] = te_tangent_vector[1]
-        row[2 * num_control_points - 2] = -te_tangent_vector[0]
-        constraints.append(row)
-        constraint_rhs.append(0.0)
-
-    if te_point is not None:
-        row_x = np.zeros(2 * num_control_points)
-        row_x[num_control_points - 1] = 1.0
-        constraints.append(row_x)
-        constraint_rhs.append(te_point[0])
-
-        row_y = np.zeros(2 * num_control_points)
-        row_y[2 * num_control_points - 1] = 1.0
-        constraints.append(row_y)
-        constraint_rhs.append(te_point[1])
-
-    constraint_weight = 1000.0
-    A_constraints = np.array(constraints) * constraint_weight
-    b_constraints = np.array(constraint_rhs) * constraint_weight
-
-    A_smoothing = np.zeros(((num_control_points - 2) * 2, 2 * num_control_points))
-    b_smoothing = np.zeros((num_control_points - 2) * 2)
-
-    for i in range(num_control_points - 2):
-        gradient = 0.5 + 1.5 * (i / (num_control_points - 3)) if num_control_points > 3 else 1.0
-        current_weight = proc.smoothing_weight * gradient
-
-        A_smoothing[i, i] = current_weight
-        A_smoothing[i, i + 1] = -2 * current_weight
-        A_smoothing[i, i + 2] = current_weight
-
-        A_smoothing[i + (num_control_points - 2), num_control_points + i] = current_weight
-        A_smoothing[i + (num_control_points - 2), num_control_points + i + 1] = -2 * current_weight
-        A_smoothing[i + (num_control_points - 2), num_control_points + i + 2] = current_weight
-
-    A_all = np.vstack([A_data, A_constraints, A_smoothing])
-    b_all = np.hstack([b_data, b_constraints, b_smoothing])
-    return np.linalg.lstsq(A_all, b_all, rcond=None)[0]
-
-
-def _build_linear_constraints(
-    num_control_points: int,
-    te_tangent_vector: np.ndarray | None,
-    te_point: np.ndarray | None,
-    enforce_monotonic_x: bool = False,
-) -> list[dict]:
-    constraints: list[dict] = []
-
-    def add_linear_eq(row: np.ndarray, rhs: float) -> None:
-        row_local = np.asarray(row, dtype=float).copy()
-        rhs_local = float(rhs)
-        constraints.append(
-            {
-                "type": "eq",
-                "fun": lambda x, r=row_local, b=rhs_local: float(np.dot(r, x) - b),
-                "jac": lambda x, r=row_local: r,
-            }
-        )
-
-    def add_linear_ineq(row: np.ndarray, rhs: float) -> None:
-        row_local = np.asarray(row, dtype=float).copy()
-        rhs_local = float(rhs)
-        constraints.append(
-            {
-                "type": "ineq",
-                "fun": lambda x, r=row_local, b=rhs_local: float(np.dot(r, x) - b),
-                "jac": lambda x, r=row_local: r,
-            }
-        )
-
-    row = np.zeros(2 * num_control_points, dtype=float)
-    row[0] = 1.0
-    add_linear_eq(row, 0.0)
-
-    row = np.zeros(2 * num_control_points, dtype=float)
-    row[num_control_points] = 1.0
-    add_linear_eq(row, 0.0)
-
-    row = np.zeros(2 * num_control_points, dtype=float)
-    row[1] = 1.0
-    add_linear_eq(row, 0.0)
-
-    if te_tangent_vector is not None:
-        row = np.zeros(2 * num_control_points, dtype=float)
-        row[num_control_points - 1] = -te_tangent_vector[1]
-        row[2 * num_control_points - 1] = te_tangent_vector[0]
-        row[num_control_points - 2] = te_tangent_vector[1]
-        row[2 * num_control_points - 2] = -te_tangent_vector[0]
-        add_linear_eq(row, 0.0)
-
-    if te_point is not None:
-        row = np.zeros(2 * num_control_points, dtype=float)
-        row[num_control_points - 1] = 1.0
-        add_linear_eq(row, te_point[0])
-
-        row = np.zeros(2 * num_control_points, dtype=float)
-        row[2 * num_control_points - 1] = 1.0
-        add_linear_eq(row, te_point[1])
-
-    if enforce_monotonic_x:
-        for i in range(1, num_control_points - 1):
-            row = np.zeros(2 * num_control_points, dtype=float)
-            row[i + 1] = 1.0
-            row[i] = -1.0
-            add_linear_ineq(row, 0.0)
-
-    return constraints
 
 
 def fit_g1_independent(
@@ -220,19 +54,6 @@ def fit_g1_independent(
         te_tangent_vector=lower_te_dir if enforce_te_tangency else None,
         te_point=te_point_lower,
     )
-    proc.last_optimizer_info = {
-        "success": True,
-        "accepted": True,
-        "accepted_via_relaxed_criteria": False,
-        "status": 0,
-        "message": "G1 independent fit solved with vertical objective.",
-        "iterations": -1,
-        "objective": float("nan"),
-        "max_constraint_violation": 0.0,
-        "solver_ftol": float("nan"),
-        "solver_maxiter": -1,
-        "mode": "g1_independent",
-    }
 
 
 def fit_single_surface_g1(
@@ -244,96 +65,82 @@ def fit_single_surface_g1(
     te_tangent_vector: np.ndarray | None = None,
     te_point: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Fit single surface with G1/TE constraints using SLSQP on the vertical objective."""
-    knot_vector = proc.upper_knot_vector if is_upper else proc.lower_knot_vector
-    degree = proc.degree_upper if is_upper else proc.degree_lower
-    if knot_vector is None:
-        raise ValueError("Knot vector is unexpectedly None in G1 fitting.")
+    """Fit single surface with G1 LE constraint and optional TE constraints."""
+    A_data = np.zeros((2 * len(surface_data), 2 * num_control_points))
+    b_data = np.zeros(2 * len(surface_data))
 
-    linear_guess = _build_linear_g1_guess(
-        proc,
-        basis_matrix,
-        surface_data,
-        num_control_points,
-        te_tangent_vector,
-        te_point,
-    )
-    x0 = np.asarray(linear_guess, dtype=float)
+    A_data[: len(surface_data), :num_control_points] = basis_matrix
+    b_data[: len(surface_data)] = surface_data[:, 0]
 
-    smooth_w = smoothing_weights(num_control_points) * (float(proc.smoothing_weight) ** 2)
-    vertical_eval_state: dict[str, np.ndarray | float | None] = {
-        "x": None,
-        "error": None,
-        "grad": None,
-        "u": None,
-    }
+    A_data[len(surface_data) :, num_control_points:] = basis_matrix
+    b_data[len(surface_data) :] = surface_data[:, 1]
 
-    def ensure_vertical_eval(vars_flat: np.ndarray, cp: np.ndarray) -> None:
-        cached_x = vertical_eval_state["x"]
-        x = np.asarray(vars_flat, dtype=float)
-        if cached_x is not None and np.array_equal(np.asarray(cached_x, dtype=float), x):
-            return
-        error, grad_cp, solved_u, _ = vertical_distance_and_grad(
-            surface_data,
-            cp,
-            knot_vector,
-            degree,
-            initial_u=np.asarray(vertical_eval_state["u"], dtype=float) if vertical_eval_state["u"] is not None else None,
-            exponent_guess=proc.param_exponent_upper if is_upper else proc.param_exponent_lower,
-        )
-        vertical_eval_state["x"] = x.copy()
-        vertical_eval_state["error"] = float(error)
-        vertical_eval_state["grad"] = grad_cp
-        vertical_eval_state["u"] = solved_u
+    constraints = []
+    constraint_rhs = []
 
-    def objective_vertical(vars_flat: np.ndarray) -> float:
-        cp = _unpack_control_points(vars_flat, num_control_points)
-        ensure_vertical_eval(vars_flat, cp)
-        error = float(vertical_eval_state["error"])
-        if smooth_w.size:
-            diff = np.diff(cp, n=2, axis=0)
-            error += float(np.sum((diff ** 2) * smooth_w[:, np.newaxis]))
-        return error
+    row = np.zeros(2 * num_control_points)
+    row[0] = 1.0
+    constraints.append(row)
+    constraint_rhs.append(0.0)
 
-    def objective_vertical_jac(vars_flat: np.ndarray) -> np.ndarray:
-        cp = _unpack_control_points(vars_flat, num_control_points)
-        ensure_vertical_eval(vars_flat, cp)
-        grad_cp = np.asarray(vertical_eval_state["grad"], dtype=float).copy()
-        if smooth_w.size:
-            diff = np.diff(cp, n=2, axis=0)
-            for i, w in enumerate(smooth_w):
-                scale = 2.0 * float(w)
-                grad_cp[i] += scale * diff[i]
-                grad_cp[i + 1] += -2.0 * scale * diff[i]
-                grad_cp[i + 2] += scale * diff[i]
-        return _pack_control_points(grad_cp)
+    row = np.zeros(2 * num_control_points)
+    row[num_control_points] = 1.0
+    constraints.append(row)
+    constraint_rhs.append(0.0)
 
-    constraints = _build_linear_constraints(
-        num_control_points,
-        te_tangent_vector,
-        te_point,
-        enforce_monotonic_x=True,
-    )
-    bounds: list[tuple[float | None, float | None]] = [(None, None)] * (2 * num_control_points)
-    y1_idx = num_control_points + 1
-    if is_upper:
-        bounds[y1_idx] = (0.0, None)
-    else:
-        bounds[y1_idx] = (None, 0.0)
+    row = np.zeros(2 * num_control_points)
+    row[1] = 1.0
+    constraints.append(row)
+    constraint_rhs.append(0.0)
 
-    max_iter = max(300, 20 * num_control_points)
-    result = optimize.minimize(
-        objective_vertical,
-        x0,
-        method="SLSQP",
-        jac=objective_vertical_jac,
-        constraints=constraints,
-        bounds=bounds,
-        options={"ftol": 1e-8, "maxiter": max_iter, "disp": False},
-    )
+    if te_tangent_vector is not None:
+        row = np.zeros(2 * num_control_points)
+        row[num_control_points - 1] = -te_tangent_vector[1]
+        row[2 * num_control_points - 1] = te_tangent_vector[0]
+        row[num_control_points - 2] = te_tangent_vector[1]
+        row[2 * num_control_points - 2] = -te_tangent_vector[0]
+        constraints.append(row)
+        constraint_rhs.append(0.0)
 
-    final_vars = result.x if bool(result.success or result.status == 0) else x0
-    control_points = _unpack_control_points(final_vars, num_control_points)
+    if te_point is not None:
+        row_x = np.zeros(2 * num_control_points)
+        row_x[num_control_points - 1] = 1.0
+        constraints.append(row_x)
+        constraint_rhs.append(te_point[0])
+
+        row_y = np.zeros(2 * num_control_points)
+        row_y[2 * num_control_points - 1] = 1.0
+        constraints.append(row_y)
+        constraint_rhs.append(te_point[1])
+
+    constraint_weight = 1000.0
+
+    A_constraints = np.array(constraints) * constraint_weight
+    b_constraints = np.array(constraint_rhs) * constraint_weight
+
+    A_smoothing = np.zeros(((num_control_points - 2) * 2, 2 * num_control_points))
+    b_smoothing = np.zeros((num_control_points - 2) * 2)
+
+    for i in range(num_control_points - 2):
+        gradient = 0.5 + 1.5 * (i / (num_control_points - 3)) if num_control_points > 3 else 1.0
+        current_weight = proc.smoothing_weight * gradient
+
+        A_smoothing[i, i] = current_weight
+        A_smoothing[i, i + 1] = -2 * current_weight
+        A_smoothing[i, i + 2] = current_weight
+
+        A_smoothing[i + (num_control_points - 2), num_control_points + i] = current_weight
+        A_smoothing[i + (num_control_points - 2), num_control_points + i + 1] = -2 * current_weight
+        A_smoothing[i + (num_control_points - 2), num_control_points + i + 2] = current_weight
+
+    A_all = np.vstack([A_data, A_constraints, A_smoothing])
+    b_all = np.hstack([b_data, b_constraints, b_smoothing])
+
+    solution = np.linalg.lstsq(A_all, b_all, rcond=None)[0]
+
+    control_points = np.zeros((num_control_points, 2))
+    control_points[:, 0] = solution[:num_control_points]
+    control_points[:, 1] = solution[num_control_points:]
 
     control_points[0] = [0.0, 0.0]
     control_points[1, 0] = 0.0

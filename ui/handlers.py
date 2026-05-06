@@ -40,8 +40,6 @@ def _clear_chord_line_selection(selection_input):
             selection_input.clearSelection(0)
     except Exception:
         pass
-
-
 def update_cp_count_labels(inputs):
     """Update the labels for CP count controls with current values."""
     try:
@@ -79,7 +77,7 @@ def reset_fitter_settings_to_defaults(inputs, resetAll=False):
             continuity_dropdown = inputs.itemById('continuity_level')
             if continuity_dropdown:
                 for i in range(continuity_dropdown.listItems.count):
-                    continuity_dropdown.listItems.item(i).isSelected = (i == 1)
+                    continuity_dropdown.listItems.item(i).isSelected = (i == 0)
             
             # Reset TE tangency enforcement
             enforce_te_tangent = inputs.itemById('enforce_te_tangency')
@@ -165,8 +163,6 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
                 if dlg.showOpen() == adsk.core.DialogResults.DialogOK:
                     file_input = inputs.itemById('file_path')
                     file_input.value = dlg.filename
-                    _set_selected_file_button_text(inputs, dlg.filename)
-                    state.fit_cache['selected_file_path'] = dlg.filename
                     # file_input.isVisible = True
                     
                     # Reset fitter settings to defaults when a new file is selected

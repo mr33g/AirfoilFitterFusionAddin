@@ -159,6 +159,14 @@ Michael Reeg
 ## Changelog
 
 ## Unreleased
+- Vertical Error Objective
+
+### v1.1.7
+- Italian language support (Thanks Mirko!)
+- Changed reference plane handling
+
+### v1.1.6 (2026-03-18)
+- Fixed Reference plane bug
 
 ### v1.1.5 (2026-02-16)
 - Performance optimizations

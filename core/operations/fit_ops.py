@@ -139,6 +139,9 @@ def fit_with_g2_optimization(
         proc.num_cp_upper = num_cp_upper
         proc.num_cp_lower = num_cp_lower
 
+        basis_upper = bspline_helper.build_basis_matrix(u_params_upper, proc.upper_knot_vector, proc.degree_upper)
+        basis_lower = bspline_helper.build_basis_matrix(u_params_lower, proc.lower_knot_vector, proc.degree_lower)
+
         proc._fit_g1_independent(
             upper_data,
             lower_data,
@@ -159,6 +162,8 @@ def fit_with_g2_optimization(
         problem = build_g2_problem(
             upper_data=upper_data,
             lower_data=lower_data,
+            basis_upper=basis_upper,
+            basis_lower=basis_lower,
             upper_knot_vector=proc.upper_knot_vector,
             lower_knot_vector=proc.lower_knot_vector,
             degree_upper=proc.degree_upper,
@@ -207,14 +212,9 @@ def fit_with_g2_optimization(
             for constraint in problem["constraints"]:
                 cval = np.asarray(constraint["fun"](x_final), dtype=float).ravel()
                 if cval.size:
-                    ctype = str(constraint.get("type", "eq")).strip().lower()
-                    if ctype == "ineq":
-                        violation = float(np.max(np.maximum(0.0, -cval)))
-                    else:
-                        violation = float(np.max(np.abs(cval)))
                     max_constraint_violation = max(
                         max_constraint_violation,
-                        violation,
+                        float(np.max(np.abs(cval))),
                     )
 
         relaxed_success = (
