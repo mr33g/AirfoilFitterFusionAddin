@@ -21,6 +21,27 @@ def _set_selected_file_button_text(inputs, file_path: str) -> None:
         pass
 
 
+def _get_sketch_reference_plane_safe(sketch):
+    try:
+        return sketch.referencePlane
+    except Exception:
+        return None
+
+
+def _clear_chord_line_selection(selection_input):
+    try:
+        selection_input.clearSelection()
+        return
+    except Exception:
+        pass
+
+    try:
+        while selection_input.selectionCount > 0:
+            selection_input.clearSelection(0)
+    except Exception:
+        pass
+
+
 def update_cp_count_labels(inputs):
     """Update the labels for CP count controls with current values."""
     try:
@@ -126,7 +147,17 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
                 pass
          
             changed_id = event_args.input.id
-            
+
+            if changed_id == 'chord_line':
+                chord_line_input = adsk.core.SelectionCommandInput.cast(inputs.itemById('chord_line'))
+                if chord_line_input and chord_line_input.selectionCount > 0:
+                    selected_line = adsk.fusion.SketchLine.cast(chord_line_input.selection(0).entity)
+                    if selected_line and not _get_sketch_reference_plane_safe(selected_line.parentSketch):
+                        _clear_chord_line_selection(chord_line_input)
+                        reset_fitter_settings_to_defaults(inputs)
+                        app.userInterface.messageBox(t("missing_sketch_reference_plane"))
+                        return
+             
             if changed_id == 'select_file':
                 ui = adsk.core.Application.get().userInterface
                 dlg = ui.createFileDialog()

@@ -52,6 +52,10 @@ STRINGS = {
         "failed_fit_airfoil": "Failed to fit airfoil, please check the input parameters and try again.",
         "failed_insert_knot": "Failed to insert knot on {surface} surface.",
         "failed_refit_surface": "Failed to re-fit {surface} surface with reduced control points.",
+        "missing_sketch_reference_plane": (
+            "The selected sketch has lost its reference plane.\n\n"
+            "Please repair the model timeline or redefine the sketch plane, then try again."
+        ),
         "generic_error": "An error occurred, please check the log for more details.",
     },
     "de": {
@@ -101,6 +105,10 @@ STRINGS = {
         "failed_fit_airfoil": "Profilanpassung fehlgeschlagen. Bitte Eingabeparameter pruefen und erneut versuchen.",
         "failed_insert_knot": "Knoten konnte auf der {surface}-Flaeche nicht eingefuegt werden.",
         "failed_refit_surface": "Neu-Anpassung der {surface}-Flaeche mit reduzierter Kontrollpunktzahl fehlgeschlagen.",
+        "missing_sketch_reference_plane": (
+            "Die ausgewaehlte Skizze hat ihre Referenzebene verloren.\n\n"
+            "Bitte reparieren Sie die Zeitleiste oder definieren Sie die Skizzenebene neu und versuchen Sie es erneut."
+        ),
         "generic_error": "Ein Fehler ist aufgetreten. Bitte pruefen Sie das Protokoll fuer Details.",
     },
     "it": {
@@ -150,6 +158,10 @@ STRINGS = {
         "failed_fit_airfoil": "Impossibile adattare il profilo. Controlla i parametri di input e riprova.",
         "failed_insert_knot": "Impossibile inserire il nodo sulla superficie {surface}.",
         "failed_refit_surface": "Impossibile riadattare la superficie {surface} con un numero ridotto di punti di controllo.",
+        "missing_sketch_reference_plane": (
+            "Lo schizzo selezionato ha perso il suo piano di riferimento.\n\n"
+            "Ripara la timeline oppure ridefinisci il piano dello schizzo, quindi riprova."
+        ),
         "generic_error": "Si e' verificato un errore. Controlla il log per maggiori dettagli.",
     }
 }

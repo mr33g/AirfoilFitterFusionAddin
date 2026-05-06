@@ -126,6 +126,12 @@ NACA 2412
 
 ## Troubleshooting
 
+### "The selected sketch has lost its reference plane"
+
+This usually means the sketch that holds the desired chord-line was created on a body and this body was later converted into a component. AirfoilFitter rejects that chord-line selection because Fusion can no longer resolve the sketch plane reliably.
+
+Fix: repair the timeline by either deriving the component after using AirfoilFitter, or before creating the sketch.
+
 ### "Dependencies Missing" on startup
 
 The add-in will offer to install numpy, scipy, and ezdxf automatically. If this fails:
