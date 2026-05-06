@@ -1,9 +1,15 @@
 import adsk.core, adsk.fusion, adsk.cam, traceback
 import os
 import sys
+import json
+import re
+import urllib.request
 
 # Get the directory where this script is located
 addin_dir = os.path.dirname(__file__)
+manifest_path = os.path.join(addin_dir, 'AirfoilFitter.manifest')
+update_manifest_url = 'https://raw.githubusercontent.com/mr33g/AirfoilFitterFusionAddin/master/AirfoilFitter.manifest'
+app_store_url = 'https://apps.autodesk.com/FUSION/en/Detail/Index?id=7312110669169312529&appLang=en&os=Win64'
 
 # Add the add-in directory and bundled 'lib' to the path
 if addin_dir not in sys.path:
@@ -18,6 +24,59 @@ from utils.i18n import t
 
 # Now we can import our modular components
 from logic import state
+
+
+def _read_manifest_version(manifest_file):
+    try:
+        with open(manifest_file, 'r', encoding='utf-8') as handle:
+            manifest_data = json.load(handle)
+        version = manifest_data.get('version')
+        return str(version).strip() if version else None
+    except Exception:
+        return None
+
+
+def _parse_version(version_string):
+    if not version_string:
+        return ()
+    numeric_parts = [int(part) for part in re.findall(r'\d+', version_string)]
+    return tuple(numeric_parts)
+
+
+def _is_remote_version_newer(local_version, remote_version):
+    local_parts = _parse_version(local_version)
+    remote_parts = _parse_version(remote_version)
+    if local_parts and remote_parts:
+        max_len = max(len(local_parts), len(remote_parts))
+        local_parts += (0,) * (max_len - len(local_parts))
+        remote_parts += (0,) * (max_len - len(remote_parts))
+        return remote_parts > local_parts
+    return bool(remote_version) and remote_version != local_version
+
+
+def check_for_updates(ui):
+    local_version = _read_manifest_version(manifest_path)
+    if not local_version:
+        return
+
+    try:
+        with urllib.request.urlopen(update_manifest_url, timeout=2.5) as response:
+            remote_manifest = json.loads(response.read().decode('utf-8'))
+    except Exception:
+        return
+
+    remote_version = str(remote_manifest.get('version', '')).strip()
+    if not _is_remote_version_newer(local_version, remote_version):
+        return
+
+    ui.messageBox(
+        t(
+            "update_available",
+            local_version=local_version,
+            remote_version=remote_version,
+            app_store_url=app_store_url
+        )
+    )
 
 def ensure_dependencies():
     """Ensures required libraries are available. Prioritizes bundled 'lib' folder."""
@@ -80,6 +139,8 @@ def run(context):
         
         if not ensure_dependencies():
             return
+
+        check_for_updates(ui)
 
         # Import these here, after dependencies are checked and potentially installed
         from ui.handlers import AirfoilFitterCommandCreatedHandler
