@@ -10,6 +10,7 @@ addin_dir = os.path.dirname(__file__)
 manifest_path = os.path.join(addin_dir, 'AirfoilFitter.manifest')
 update_manifest_url = 'https://raw.githubusercontent.com/mr33g/AirfoilFitterFusionAddin/master/AirfoilFitter.manifest'
 app_store_url = 'https://apps.autodesk.com/FUSION/en/Detail/Index?id=7312110669169312529&appLang=en&os=Win64'
+_update_check_attempted = False
 
 # Add the add-in directory and bundled 'lib' to the path
 if addin_dir not in sys.path:
@@ -55,6 +56,11 @@ def _is_remote_version_newer(local_version, remote_version):
 
 
 def check_for_updates(ui):
+    global _update_check_attempted
+    if _update_check_attempted:
+        return
+    _update_check_attempted = True
+
     local_version = _read_manifest_version(manifest_path)
     if not local_version:
         return
@@ -77,6 +83,18 @@ def check_for_updates(ui):
             app_store_url=app_store_url
         )
     )
+
+
+def _python_has_module(python_exe, module_name):
+    import subprocess
+
+    result = subprocess.run(
+        [python_exe, '-c', f'import importlib.util, sys; sys.exit(0 if importlib.util.find_spec("{module_name}") else 1)'],
+        capture_output=True,
+        text=True
+    )
+    return result.returncode == 0
+
 
 def ensure_dependencies():
     """Ensures required libraries are available. Prioritizes bundled 'lib' folder."""
@@ -109,13 +127,21 @@ def ensure_dependencies():
         if not os.path.exists(lib_dir):
             os.makedirs(lib_dir)
 
+        bootstrap_pip_cmd = f'"{python_exe}" -m ensurepip --upgrade'
         # Install directly into the add-in's lib folder
         pip_cmd = f'"{python_exe}" -m pip install --upgrade --force-reinstall --target "{lib_dir}" numpy scipy ezdxf'
+        needs_pip_bootstrap = not _python_has_module(python_exe, 'pip')
+
+        install_cmd = pip_cmd
+        if needs_pip_bootstrap:
+            install_cmd = f'{bootstrap_pip_cmd} && {pip_cmd}'
         
         if os.name == 'nt':
-            os.system(f'start "AirfoilFitter Dependency Installer" cmd /c "{pip_cmd} & pause"')
+            os.system(f'start "AirfoilFitter Dependency Installer" cmd /c "{install_cmd} & pause"')
             ui.messageBox(t("deps_install_started"))
         else:
+            if needs_pip_bootstrap:
+                subprocess.check_call([python_exe, '-m', 'ensurepip', '--upgrade'])
             subprocess.check_call([python_exe, '-m', 'pip', 'install', '--upgrade', '--force-reinstall', '--target', lib_dir, 'numpy', 'scipy', 'ezdxf'])
             ui.messageBox(t("deps_install_complete"))
             
@@ -139,8 +165,6 @@ def run(context):
         
         if not ensure_dependencies():
             return
-
-        check_for_updates(ui)
 
         # Import these here, after dependencies are checked and potentially installed
         from ui.handlers import AirfoilFitterCommandCreatedHandler

@@ -94,7 +94,10 @@ class AirfoilFitterCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             event_args = adsk.core.CommandCreatedEventArgs.cast(args)
             cmd = event_args.command
             cmd.setDialogSize(300, 0)
-            
+
+            from AirfoilFitter import check_for_updates
+            check_for_updates(adsk.core.Application.get().userInterface)
+             
             on_execute = AirfoilFitterCommandExecuteHandler()
             cmd.execute.add(on_execute)
             state.handlers.append(on_execute)
