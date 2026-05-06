@@ -164,6 +164,7 @@ Michael Reeg
 ### v1.1.7
 - Italian language support (Thanks Mirko!)
 - Changed reference plane handling
+- Fixed TE normalization 
 
 ### v1.1.6 (2026-03-18)
 - Fixed Reference plane bug
