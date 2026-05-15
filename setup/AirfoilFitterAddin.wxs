@@ -11,7 +11,7 @@
              Manufacturer="Michael Reeg" 
              Version="$(var.Version)" 
              UpgradeCode="F0E1D2C3-B4A5-9687-7869-5A4B3C2D1E0F"
-             Scope="perUser">
+             Scope="perMachine">
         
         <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
         <MediaTemplate EmbedCab="yes" />
