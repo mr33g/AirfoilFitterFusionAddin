@@ -7,16 +7,18 @@ import adsk.core
 from core import config
 from core.operations import (
     apply_knot_insertions,
+    cp_spacing_violates_minimum,
     finalize_curves,
     fit_bspline as fit_bspline_op,
     fit_g1_independent,
     fit_single_surface_g1,
     fit_with_g2_optimization as fit_with_g2_optimization_op,
+    insert_knot_with_spacing_fallback,
+    largest_span_midpoint_knot,
     refine_curve_with_knots as refine_curve_with_knots_op,
     refine_curves_with_surface_knots as refine_curves_with_surface_knots_op,
     refit_after_knot_insertion,
     validate_continuity,
-    validate_trailing_edge_tangents,
 )
 from core.optimization import (
     vars_to_control_points,
@@ -50,11 +52,16 @@ class BSplineProcessor:
         self.enforce_g3: bool = False
         self.g2_weight: float = 100.0  # Weight for G2 constraint in optimization
         self.smoothing_weight: float = config.DEFAULT_SMOOTHNESS_PENALTY  # Weight for control point smoothing penalty
+        self.min_cp_neighbor_distance: float = float(getattr(config, "MIN_CP_NEIGHBOR_DISTANCE", 0.0))
         # Tight insertion-mode SLSQP settings from tuned jacobian implementation.
         self.insertion_solver_ftol: float = 1e-10
         self.insertion_solver_maxiter_factor: float = 50.0
         self.insertion_solver_min_maxiter: int = 480
+        self.last_error_message: str | None = None
         self.last_optimizer_info: dict | None = None
+        self.last_insertion_info: dict | None = None
+        self.upper_te_dir: np.ndarray | None = None
+        self.lower_te_dir: np.ndarray | None = None
         
         self.upper_original_data: np.ndarray | None = None
         self.lower_original_data: np.ndarray | None = None
@@ -71,7 +78,6 @@ class BSplineProcessor:
         lower_te_tangent_vector: np.ndarray | None = None,
         enforce_g2: bool = False,
         enforce_g3: bool = False,
-        enforce_te_tangency: bool = True,
         single_span: bool = False,
     ) -> bool:
         return fit_bspline_op(
@@ -84,7 +90,6 @@ class BSplineProcessor:
             lower_te_tangent_vector=lower_te_tangent_vector,
             enforce_g2=enforce_g2,
             enforce_g3=enforce_g3,
-            enforce_te_tangency=enforce_te_tangency,
             single_span=single_span,
         )
 
@@ -95,8 +100,9 @@ class BSplineProcessor:
         num_control_points: int | tuple[int, int],
         upper_te_dir: np.ndarray | None,
         lower_te_dir: np.ndarray | None,
-        enforce_te_tangency: bool = True,
         use_existing_knot_vectors: bool = False,
+        warm_start_from_current: bool = False,
+        use_insertion_solver_settings: bool = False,
     ) -> bool:
         return fit_with_g2_optimization_op(
             self,
@@ -105,8 +111,9 @@ class BSplineProcessor:
             num_control_points,
             upper_te_dir,
             lower_te_dir,
-            enforce_te_tangency=enforce_te_tangency,
             use_existing_knot_vectors=use_existing_knot_vectors,
+            warm_start_from_current=warm_start_from_current,
+            use_insertion_solver_settings=use_insertion_solver_settings,
         )
 
     def _vars_to_control_points(self, vars: np.ndarray, num_cp_upper: int, num_cp_lower: int) -> tuple[np.ndarray, np.ndarray]:
@@ -120,7 +127,7 @@ class BSplineProcessor:
         num_control_points: int | tuple[int, int],
         upper_te_dir: np.ndarray | None,
         lower_te_dir: np.ndarray | None,
-        enforce_te_tangency: bool = True,
+        enable_soft_te_handle_quality: bool = True,
         use_existing_knot_vectors: bool = False,
     ):
         return fit_g1_independent(
@@ -130,7 +137,7 @@ class BSplineProcessor:
             num_control_points,
             upper_te_dir,
             lower_te_dir,
-            enforce_te_tangency=enforce_te_tangency,
+            enable_soft_te_handle_quality=enable_soft_te_handle_quality,
             use_existing_knot_vectors=use_existing_knot_vectors,
         )
 
@@ -140,7 +147,7 @@ class BSplineProcessor:
         surface_data: np.ndarray,
         num_control_points: int,
         is_upper: bool,
-        te_tangent_vector: np.ndarray | None = None,
+        soft_te_tangent_vector: np.ndarray | None = None,
         te_point: np.ndarray | None = None
     ) -> np.ndarray:
         return fit_single_surface_g1(
@@ -149,15 +156,12 @@ class BSplineProcessor:
             surface_data,
             num_control_points,
             is_upper,
-            te_tangent_vector=te_tangent_vector,
+            soft_te_tangent_vector=soft_te_tangent_vector,
             te_point=te_point,
         )
 
     def _finalize_curves(self):
         return finalize_curves(self)
-
-    def _validate_trailing_edge_tangents(self, upper_te_dir: np.ndarray | None, lower_te_dir: np.ndarray | None) -> None:
-        return validate_trailing_edge_tangents(self, upper_te_dir, lower_te_dir)
 
     def _validate_continuity(self):
         return validate_continuity(self)
@@ -210,7 +214,6 @@ class BSplineProcessor:
                     modified_upper, modified_lower,
                     (self.num_cp_upper, self.num_cp_lower),
                     upper_te_dir=None, lower_te_dir=None,
-                    enforce_te_tangency=False,
                     use_existing_knot_vectors=False
                 )
                 if not success:
@@ -219,7 +222,7 @@ class BSplineProcessor:
                         modified_upper, modified_lower,
                         (self.num_cp_upper, self.num_cp_lower),
                         upper_te_dir=None, lower_te_dir=None,
-                        enforce_te_tangency=False,
+                        enable_soft_te_handle_quality=False,
                         use_existing_knot_vectors=False
                     )
             else:
@@ -227,7 +230,7 @@ class BSplineProcessor:
                     modified_upper, modified_lower,
                     (self.num_cp_upper, self.num_cp_lower),
                     upper_te_dir=None, lower_te_dir=None,
-                    enforce_te_tangency=False,
+                    enable_soft_te_handle_quality=False,
                     use_existing_knot_vectors=False
                 )
 
@@ -303,6 +306,35 @@ class BSplineProcessor:
 
     def _refit_after_knot_insertion(self, *, use_existing_knot_vectors: bool) -> bool:
         return refit_after_knot_insertion(self, use_existing_knot_vectors=use_existing_knot_vectors)
+
+    def _insert_knot_with_spacing_fallback(
+        self,
+        control_points: np.ndarray,
+        knot_vector: np.ndarray,
+        degree: int,
+        requested_knot: float,
+        surface_name: str,
+    ) -> tuple[np.ndarray, np.ndarray, float, bool] | None:
+        return insert_knot_with_spacing_fallback(
+            self,
+            control_points,
+            knot_vector,
+            degree,
+            requested_knot,
+            surface_name,
+        )
+
+    def _largest_span_midpoint_knot(
+        self,
+        knot_vector: np.ndarray,
+        degree: int,
+        *,
+        exclude: float | None = None,
+    ) -> float | None:
+        return largest_span_midpoint_knot(self, knot_vector, degree, exclude=exclude)
+
+    def _cp_spacing_violates_minimum(self, control_points: np.ndarray) -> bool:
+        return cp_spacing_violates_minimum(self, control_points)
 
     def refine_curve_with_knots(self, new_knots: list[float], surface: str | None = None) -> bool:
         """

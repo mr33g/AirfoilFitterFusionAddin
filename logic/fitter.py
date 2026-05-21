@@ -121,7 +121,6 @@ def run_fitter(inputs, is_preview):
                         enforce_g3 = True
                     # G1: enforce_g2 = False, enforce_g3 = False (already set)
             
-            enforce_te_tangent = inputs.itemById('enforce_te_tangency').value
             smoothness = inputs.itemById('smoothness_input').valueOne
             
             processor = AirfoilProcessor(logger_func=lambda msg: None)
@@ -154,7 +153,7 @@ def run_fitter(inputs, is_preview):
                     upper_te_tangent_vector=processor.upper_te_tangent_vector,
                     lower_te_tangent_vector=processor.lower_te_tangent_vector,
                     enforce_g2=enforce_g2, enforce_g3=enforce_g3,
-                    enforce_te_tangency=enforce_te_tangent, single_span=True
+                    single_span=True
                 )
                 if not success: 
                     app.userInterface.messageBox(t("failed_fit_airfoil"))
@@ -211,7 +210,7 @@ def run_fitter(inputs, is_preview):
                         upper_te_tangent_vector=processor.upper_te_tangent_vector,
                         lower_te_tangent_vector=processor.lower_te_tangent_vector,
                         enforce_g2=enforce_g2, enforce_g3=enforce_g3,
-                        enforce_te_tangency=enforce_te_tangent, single_span=True
+                        single_span=True
                     )
                     if not success:
                         app.userInterface.messageBox(t("failed_refit_surface", surface=surface))
@@ -246,7 +245,7 @@ def run_fitter(inputs, is_preview):
                         upper_te_tangent_vector=processor.upper_te_tangent_vector,
                         lower_te_tangent_vector=processor.lower_te_tangent_vector,
                         enforce_g2=enforce_g2, enforce_g3=enforce_g3,
-                        enforce_te_tangency=enforce_te_tangent, single_span=True
+                        single_span=True
                     )
                 
                 # Update state (only if not already updated in remove_control_points)

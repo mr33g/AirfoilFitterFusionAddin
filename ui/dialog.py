@@ -58,9 +58,6 @@ def create_ui_inputs(inputs):
         continuity_dropdown.listItems[1].isSelected = True  # G2 selected by default
         continuity_dropdown.isVisible = False
         
-        te_tan = groupFitterSettingsChildInputs.addBoolValueInput('enforce_te_tangency', t("enforce_te_tangency"), True, '', False)
-        te_tan.isVisible = False
-        
         groupImportSettings = inputs.addGroupCommandInput('import_settings', t("import_settings"))
         groupImportSettings.isExpanded = True
         groupImportSettings.isEnabledCheckBoxDisplayed = False

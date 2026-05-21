@@ -107,12 +107,16 @@ def solve_u_for_x_targets(
             u[idx_point] = ub
             continue
         if fa * fb > 0.0:
-            u[idx_point] = ua if abs(fa) <= abs(fb) else ub
+            if abs(fa) <= abs(fb):
+                u[idx_point] = ua
+            else:
+                u[idx_point] = ub
             continue
 
         left_u = ua
         right_u = ub
         left_f = fa
+        right_f = fb
         for _ in range(max(1, int(bisect_iters))):
             mid_u = 0.5 * (left_u + right_u)
             mid_f = float(curve(mid_u)[0] - x_target)
@@ -122,6 +126,7 @@ def solve_u_for_x_targets(
                 break
             if left_f * mid_f <= 0.0:
                 right_u = mid_u
+                right_f = mid_f
             else:
                 left_u = mid_u
                 left_f = mid_f
@@ -159,6 +164,7 @@ def vertical_distance_and_grad(
     basis = bspline_helper.build_basis_matrix(solved_u, knot_vector, degree)
     basis_d1 = build_basis_derivative_matrix(solved_u, knot_vector, degree)
 
+    x_curve = basis @ control_points[:, 0]
     y_curve = basis @ control_points[:, 1]
     y_residual = y_curve - data_points[:, 1]
     error = float(np.sum(y_residual * y_residual))
@@ -176,4 +182,58 @@ def vertical_distance_and_grad(
     x_weight = 2.0 * y_residual * (-dy_du / safe_dx_du)
     grad_cp[:, 0] = basis.T @ x_weight
 
+    _ = x_curve
     return error, grad_cp, solved_u, y_residual
+
+
+def vertical_error_metrics(
+    curve: interpolate.BSpline,
+    original_data: np.ndarray,
+    *,
+    exponent_guess: float = 0.5,
+) -> dict[str, float | int | np.ndarray]:
+    cp = np.asarray(curve.c, dtype=float)
+    knot_vector = np.asarray(curve.t, dtype=float)
+    degree = int(curve.k)
+    _, _, solved_u, y_residual = vertical_distance_and_grad(
+        original_data,
+        cp,
+        knot_vector,
+        degree,
+        exponent_guess=exponent_guess,
+    )
+    abs_residual = np.abs(y_residual)
+    sum_sq = float(np.sum(y_residual * y_residual))
+    rms = float(np.sqrt(np.mean(y_residual * y_residual))) if y_residual.size else 0.0
+    max_idx = int(np.argmax(abs_residual)) if abs_residual.size else -1
+    max_error = float(abs_residual[max_idx]) if max_idx >= 0 else 0.0
+    u_at_max = float(solved_u[max_idx]) if max_idx >= 0 else 0.0
+    return {
+        "signed_residuals": y_residual,
+        "abs_residuals": abs_residual,
+        "sum_sq": sum_sq,
+        "rms": rms,
+        "max_error": max_error,
+        "max_error_idx": max_idx,
+        "u_at_max_error": u_at_max,
+    }
+
+
+def pure_surface_fit_error(
+    metric: str,
+    data_points: np.ndarray,
+    control_points: np.ndarray,
+    knot_vector: np.ndarray,
+    degree: int,
+    *,
+    exponent_guess: float = 0.5,
+) -> float:
+    _ = metric
+    error, _, _, _ = vertical_distance_and_grad(
+        data_points,
+        control_points,
+        knot_vector,
+        degree,
+        exponent_guess=exponent_guess,
+    )
+    return float(error)

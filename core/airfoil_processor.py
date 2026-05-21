@@ -59,21 +59,6 @@ class AirfoilProcessor:
         """Returns the trailing edge thickness normalized to chord length."""
         return self._te_thickness
 
-    def recalculate_te_vectors(self, te_vector_points):
-        """
-        Recalculate the trailing edge tangent vectors using the specified number of points.
-        """
-        if self.upper_data is None or self.lower_data is None:
-            self.logger_func("Error: No airfoil data loaded. Cannot recalculate TE vectors.")
-            return
-        
-        upper_te_tangent_vector, lower_te_tangent_vector = self._calculate_te_tangent(
-            self.upper_data, self.lower_data, te_vector_points
-        )
-        self.upper_te_tangent_vector = upper_te_tangent_vector
-        self.lower_te_tangent_vector = lower_te_tangent_vector
-        self.logger_func(f"Trailing edge vectors recalculated with {te_vector_points} points.")
-
     def _calculate_te_tangent(self, upper_data, lower_data, te_vector_points):
         """
         Calculate trailing edge tangent vectors for upper and lower surfaces using the last N points.

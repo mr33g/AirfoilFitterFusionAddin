@@ -324,50 +324,6 @@ def _compute_start_derivatives(
     return out[0], out[1], out[2]
 
 
-def compute_tangent_at_trailing_edge(control_points: np.ndarray, knot_vector: np.ndarray, degree: int) -> np.ndarray:
-    """
-    Compute the tangent vector at the trailing edge (u=1) of a B-spline curve.
-    
-    For a B-spline of degree p, the tangent at u=1 is:
-    tangent = p * (P_n - P_{n-1}) / (t_{n+1} - t_{n-p+1})
-    
-    Args:
-        control_points: Control points of the B-spline
-        knot_vector: Knot vector of the B-spline
-        degree: B-spline degree
-        
-    Returns:
-        Tangent vector at the trailing edge
-    """
-    n = len(control_points) - 1  # Number of control points minus 1
-    p = degree
-    
-    # Get the last two control points
-    P_n = control_points[-1]
-    P_n_minus_1 = control_points[-2]
-    
-    # Get the relevant knot values
-    t_n_plus_1 = knot_vector[n + 1]
-    t_n_minus_p_plus_1 = knot_vector[n - p + 1]
-    
-    # Compute the denominator
-    denominator = t_n_plus_1 - t_n_minus_p_plus_1
-    
-    if abs(denominator) < 1e-12:
-        # Fallback: use simple difference
-        tangent = P_n - P_n_minus_1
-    else:
-        # Compute tangent using B-spline formula
-        tangent = p * (P_n - P_n_minus_1) / denominator
-    
-    # Normalize the tangent vector
-    norm = np.linalg.norm(tangent)
-    if norm > 1e-12:
-        tangent = tangent / norm
-    
-    return tangent
-
-
 def smoothstep_quintic(u: np.ndarray) -> np.ndarray:
     """
     C2 smoothstep (quintic) function.

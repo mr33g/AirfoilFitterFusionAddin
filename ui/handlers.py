@@ -81,10 +81,6 @@ def reset_fitter_settings_to_defaults(inputs, resetAll=False):
                 for i in range(continuity_dropdown.listItems.count):
                     continuity_dropdown.listItems.item(i).isSelected = (i == 1)
             
-            # Reset TE tangency enforcement
-            enforce_te_tangent = inputs.itemById('enforce_te_tangency')
-            if enforce_te_tangent:
-                enforce_te_tangent.value = False
     except Exception as e:
         pass
 
@@ -182,7 +178,7 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
                     if line_select and line_select.selectionCount > 0:
                         state.needs_refit = True
             
-            elif changed_id in ['continuity_level', 'smoothness_input', 'cp_count_upper', 'cp_count_lower', 'enforce_te_tangency']:
+            elif changed_id in ['continuity_level', 'smoothness_input', 'cp_count_upper', 'cp_count_lower']:
                 if changed_id in ['continuity_level']:
                     state.fit_cache = {}
                 
@@ -220,7 +216,7 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
             has_selection = chord_line_input.selectionCount > 0 and file_path_input.value != ""
             
             toggle_ids = ['cp_count_upper', 'cp_count_lower', 'te_thickness', 'smoothness_input', 'continuity_level',
-                          'enforce_te_tangency', 'import_raw', 
+                          'import_raw', 
                           'rotate_airfoil', 'flip_airfoil', 'curvature_comb', 
                           'comb_scale', 'comb_density', 'editable_splines', 'fitter_settings', 'import_settings', 'reset_button']
             
@@ -284,7 +280,7 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
             # Always trigger preview when parameters change (if line and file are selected)
             if has_selection:
                 refit_ids = ['cp_count_upper', 'cp_count_lower', 'smoothness_input', 'continuity_level',
-                             'enforce_te_tangency', 'file_path', 'chord_line']
+                             'file_path', 'chord_line']
                 update_ids = ['te_thickness', 'import_raw', 'rotate_airfoil', 'flip_airfoil',
                              'curvature_comb', 'comb_scale', 'comb_density']
                 if changed_id in refit_ids:

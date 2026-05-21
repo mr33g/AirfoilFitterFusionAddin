@@ -31,11 +31,6 @@ def finalize_curves(proc) -> None:
         proc.lower_curve = interpolate.BSpline(proc.lower_knot_vector, proc.lower_control_points, proc.degree_lower)
 
 
-def validate_trailing_edge_tangents(proc, upper_te_dir: np.ndarray | None, lower_te_dir: np.ndarray | None) -> None:
-    _ = proc, upper_te_dir, lower_te_dir
-    pass
-
-
 def validate_continuity(proc) -> None:
     if not config.DEBUG_WORKER_LOGGING:
         return
