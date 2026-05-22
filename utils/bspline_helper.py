@@ -340,6 +340,32 @@ def smoothstep_quintic(u: np.ndarray) -> np.ndarray:
     return u**3 * (10 - 15*u + 6*u*u)
 
 
+def apply_te_thickness_to_reference(
+    upper_data: np.ndarray,
+    lower_data: np.ndarray,
+    target_te_thickness: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return copies of surface data adjusted to the requested trailing-edge thickness."""
+    adjusted_upper = upper_data.copy()
+    adjusted_lower = lower_data.copy()
+
+    if len(adjusted_upper) == 0 or len(adjusted_lower) == 0:
+        return adjusted_upper, adjusted_lower
+
+    original_te = abs(float(adjusted_upper[-1, 1] - adjusted_lower[-1, 1]))
+    te_delta = float(target_te_thickness) - original_te
+    if abs(te_delta) <= 1e-9:
+        return adjusted_upper, adjusted_lower
+
+    half_delta = 0.5 * te_delta
+    upper_x = np.clip(adjusted_upper[:, 0], 0.0, 1.0)
+    lower_x = np.clip(adjusted_lower[:, 0], 0.0, 1.0)
+
+    adjusted_upper[:, 1] += half_delta * smoothstep_quintic(upper_x)
+    adjusted_lower[:, 1] -= half_delta * smoothstep_quintic(lower_x)
+    return adjusted_upper, adjusted_lower
+
+
 def sample_curve(curve: interpolate.BSpline, num_samples: int) -> tuple[np.ndarray, np.ndarray]:
     """
     Sample a B-spline curve densely in parameter domain.

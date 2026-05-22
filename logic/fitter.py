@@ -111,15 +111,25 @@ def run_fitter(inputs, is_preview):
             )
             return max_error, data[max_error_idx].copy()
 
+        def set_error_reference_for_te(cache, te_thickness_normalized):
+            upper_ref, lower_ref = bspline_helper.apply_te_thickness_to_reference(
+                cache['raw_upper'],
+                cache['raw_lower'],
+                te_thickness_normalized,
+            )
+            cache['error_upper'] = upper_ref
+            cache['error_lower'] = lower_ref
+
         def update_cache_errors_from_curves(upper_curve, lower_curve, cache):
+            set_error_reference_for_te(cache, cache.get('te_value', 0.0))
             err_u, max_err_pt_u = calc_max_err(
                 upper_curve,
-                cache['raw_upper'],
+                cache['error_upper'],
                 cache.get('param_exponent_upper', 0.5),
             )
             err_l, max_err_pt_l = calc_max_err(
                 lower_curve,
-                cache['raw_lower'],
+                cache['error_lower'],
                 cache.get('param_exponent_lower', 0.5),
             )
             cache['err_u'] = err_u
@@ -282,14 +292,21 @@ def run_fitter(inputs, is_preview):
                 if cp_diff_lower >= 0:
                     state.current_cp_count_lower = cp_count_lower
                 
+            initial_error_upper_data, initial_error_lower_data = (
+                bspline_helper.apply_te_thickness_to_reference(
+                    error_upper_data,
+                    error_lower_data,
+                    processor.get_te_thickness(),
+                )
+            )
             err_u, max_err_pt_u = calc_max_err(
                 bspline.upper_curve,
-                error_upper_data,
+                initial_error_upper_data,
                 bspline.param_exponent_upper,
             )
             err_l, max_err_pt_l = calc_max_err(
                 bspline.lower_curve,
-                error_lower_data,
+                initial_error_lower_data,
                 bspline.param_exponent_lower,
             )
             
@@ -302,6 +319,7 @@ def run_fitter(inputs, is_preview):
                 'err_u': err_u, 'err_l': err_l,
                 'max_err_pt_u': max_err_pt_u, 'max_err_pt_l': max_err_pt_l,  # Store coordinates of max deviation points
                 'raw_upper': error_upper_data.copy(), 'raw_lower': error_lower_data.copy(),
+                'error_upper': initial_error_upper_data.copy(), 'error_lower': initial_error_lower_data.copy(),
                 'fit_upper': processor.upper_data.copy(), 'fit_lower': processor.lower_data.copy(),
                 'param_exponent_upper': bspline.param_exponent_upper,
                 'param_exponent_lower': bspline.param_exponent_lower,
@@ -310,6 +328,7 @@ def run_fitter(inputs, is_preview):
                 'enforce_g2': enforce_g2,
                 'enforce_g3': enforce_g3
             }
+            set_error_reference_for_te(state.fit_cache, state.fit_cache['te_value'])
 
             # Edge case: Reapply TE thickness after CP count change
             if prev_te_applied:

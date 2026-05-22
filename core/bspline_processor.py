@@ -192,21 +192,11 @@ class BSplineProcessor:
             return False
 
         try:
-            modified_upper = self.upper_original_data.copy()
-            modified_lower = self.lower_original_data.copy()
-
-            # Calculate delta from original TE thickness
-            original_te = abs(self.upper_original_data[-1, 1] - self.lower_original_data[-1, 1])
-            te_delta = self.te_thickness_normalized - original_te
-
-            # Apply smoothstep blend if delta is non-zero
-            if abs(te_delta) > 1e-9:
-                half_delta = 0.5 * te_delta
-                upper_x = np.clip(modified_upper[:, 0], 0.0, 1.0)
-                lower_x = np.clip(modified_lower[:, 0], 0.0, 1.0)
-
-                modified_upper[:, 1] += half_delta * bspline_helper.smoothstep_quintic(upper_x)
-                modified_lower[:, 1] -= half_delta * bspline_helper.smoothstep_quintic(lower_x)
+            modified_upper, modified_lower = bspline_helper.apply_te_thickness_to_reference(
+                self.upper_original_data,
+                self.lower_original_data,
+                self.te_thickness_normalized,
+            )
 
             # Refit with modified data
             if self.enforce_g2:
