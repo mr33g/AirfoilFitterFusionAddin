@@ -101,6 +101,32 @@ def run_fitter(inputs, is_preview):
         prev_te_applied = state.fit_cache.get('te_applied', False) if state.fit_cache else False
         prev_te_value = state.fit_cache.get('te_value', 0.0) if state.fit_cache else 0.0
 
+        def calc_max_err(curve, data, exponent):
+            """Calculate maximum error against the displayed normalized input."""
+            if not curve:
+                return 0.0, np.array([0.0, 0.0])
+
+            _, max_error, max_error_idx, _ = bspline_helper.calculate_bspline_fitting_error(
+                curve, data, param_exponent=exponent, return_max_error=True
+            )
+            return max_error, data[max_error_idx].copy()
+
+        def update_cache_errors_from_curves(upper_curve, lower_curve, cache):
+            err_u, max_err_pt_u = calc_max_err(
+                upper_curve,
+                cache['raw_upper'],
+                cache.get('param_exponent_upper', 0.5),
+            )
+            err_l, max_err_pt_l = calc_max_err(
+                lower_curve,
+                cache['raw_lower'],
+                cache.get('param_exponent_lower', 0.5),
+            )
+            cache['err_u'] = err_u
+            cache['err_l'] = err_l
+            cache['max_err_pt_u'] = max_err_pt_u
+            cache['max_err_pt_l'] = max_err_pt_l
+
         if do_new_fit:
             file_path = inputs.itemById('file_path').value
             if not file_path or not os.path.exists(file_path):
@@ -127,12 +153,14 @@ def run_fitter(inputs, is_preview):
             if not processor.load_airfoil_data_and_initialize_model(file_path):
                 app.userInterface.messageBox(t("failed_load_airfoil_data"))
                 return False
+            error_upper_data, error_lower_data = processor.error_reference_data()
             
             # Determine operation type based on state
             is_initial_fit = (state.current_cp_count_upper is None and state.current_cp_count_lower is None)
 
-            # Set TE thickness input to match loaded airfoil's existing thickness (on initial load only)
-            if is_initial_fit and processor.get_te_thickness() > 0:
+            # Set TE thickness input to match the newly loaded airfoil on initial load.
+            # This must also write zero so a previous file's TE value cannot leak.
+            if is_initial_fit:
                 te_input = inputs.itemById('te_thickness')
                 if te_input:
                     te_input.value = processor.get_te_thickness() * chord_length
@@ -254,19 +282,16 @@ def run_fitter(inputs, is_preview):
                 if cp_diff_lower >= 0:
                     state.current_cp_count_lower = cp_count_lower
                 
-            def calc_max_err(curve, data, exponent):
-                """Calculate maximum error using the helper function."""
-                if not curve: return 0.0, np.array([0.0, 0.0])
-                
-                _, max_error, max_error_idx, _ = bspline_helper.calculate_bspline_fitting_error(
-                    curve, data, param_exponent=exponent, return_max_error=True
-                )
-                
-                # Return error value and the data point with max deviation
-                return max_error, data[max_error_idx].copy()  # Return full (x, y) coordinates of data point
-
-            err_u, max_err_pt_u = calc_max_err(bspline.upper_curve, processor.upper_data, bspline.param_exponent_upper)
-            err_l, max_err_pt_l = calc_max_err(bspline.lower_curve, processor.lower_data, bspline.param_exponent_lower)
+            err_u, max_err_pt_u = calc_max_err(
+                bspline.upper_curve,
+                error_upper_data,
+                bspline.param_exponent_upper,
+            )
+            err_l, max_err_pt_l = calc_max_err(
+                bspline.lower_curve,
+                error_lower_data,
+                bspline.param_exponent_lower,
+            )
             
             state.fit_cache = {
                 'upper_cp_raw': bspline.upper_control_points.copy(),
@@ -276,7 +301,10 @@ def run_fitter(inputs, is_preview):
                 'is_sharp': bspline.is_sharp_te,
                 'err_u': err_u, 'err_l': err_l,
                 'max_err_pt_u': max_err_pt_u, 'max_err_pt_l': max_err_pt_l,  # Store coordinates of max deviation points
-                'raw_upper': processor.upper_data, 'raw_lower': processor.lower_data,
+                'raw_upper': error_upper_data.copy(), 'raw_lower': error_lower_data.copy(),
+                'fit_upper': processor.upper_data.copy(), 'fit_lower': processor.lower_data.copy(),
+                'param_exponent_upper': bspline.param_exponent_upper,
+                'param_exponent_lower': bspline.param_exponent_lower,
                 'te_applied': False,
                 'te_value': processor.get_te_thickness(),  # Original TE thickness (normalized)
                 'enforce_g2': enforce_g2,
@@ -286,8 +314,8 @@ def run_fitter(inputs, is_preview):
             # Edge case: Reapply TE thickness after CP count change
             if prev_te_applied:
                 bspline.te_thickness_normalized = prev_te_value
-                bspline.upper_original_data = processor.upper_data.copy()
-                bspline.lower_original_data = processor.lower_data.copy()
+                bspline.upper_original_data = state.fit_cache['fit_upper'].copy()
+                bspline.lower_original_data = state.fit_cache['fit_lower'].copy()
                 if bspline.apply_te_thickening_parametric():
                     state.fit_cache['upper_cp_raw'] = bspline.upper_control_points.copy()
                     state.fit_cache['lower_cp_raw'] = bspline.lower_control_points.copy()
@@ -298,6 +326,13 @@ def run_fitter(inputs, is_preview):
                     state.fit_cache['is_sharp'] = bspline.is_sharp_te
                     state.fit_cache['te_applied'] = True
                     state.fit_cache['te_value'] = prev_te_value
+                    state.fit_cache['param_exponent_upper'] = bspline.param_exponent_upper
+                    state.fit_cache['param_exponent_lower'] = bspline.param_exponent_lower
+                    update_cache_errors_from_curves(
+                        bspline.upper_curve,
+                        bspline.lower_curve,
+                        state.fit_cache,
+                    )
 
         # 3. Post-Processing - Apply TE thickening parametrically
         te_thickness = inputs.itemById('te_thickness').value
@@ -312,8 +347,10 @@ def run_fitter(inputs, is_preview):
         if te_changed and not do_new_fit:
             # Reconstruct processor state for TE thickening
             bspline_te = BSplineProcessor()
-            bspline_te.upper_original_data = state.fit_cache['raw_upper'].copy()
-            bspline_te.lower_original_data = state.fit_cache['raw_lower'].copy()
+            fit_upper = state.fit_cache.get('fit_upper', state.fit_cache['raw_upper'])
+            fit_lower = state.fit_cache.get('fit_lower', state.fit_cache['raw_lower'])
+            bspline_te.upper_original_data = fit_upper.copy()
+            bspline_te.lower_original_data = fit_lower.copy()
             bspline_te.num_cp_upper = state.current_cp_count_upper
             bspline_te.num_cp_lower = state.current_cp_count_lower
             bspline_te.enforce_g2 = state.fit_cache.get('enforce_g2', False)
@@ -334,6 +371,13 @@ def run_fitter(inputs, is_preview):
                 state.fit_cache['is_sharp'] = bspline_te.is_sharp_te
                 state.fit_cache['te_applied'] = True
                 state.fit_cache['te_value'] = te_thickness_normalized
+                state.fit_cache['param_exponent_upper'] = bspline_te.param_exponent_upper
+                state.fit_cache['param_exponent_lower'] = bspline_te.param_exponent_lower
+                update_cache_errors_from_curves(
+                    bspline_te.upper_curve,
+                    bspline_te.lower_curve,
+                    state.fit_cache,
+                )
 
         upper_cp = state.fit_cache['upper_cp_raw'].copy()
         lower_cp = state.fit_cache['lower_cp_raw'].copy()

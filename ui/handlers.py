@@ -167,6 +167,9 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
                     
                     # Reset fitter settings to defaults when a new file is selected
                     reset_fitter_settings_to_defaults(inputs)
+                    te_input = inputs.itemById('te_thickness')
+                    if te_input:
+                        te_input.value = 0.0
                     
                     # Reset state variables related to fitting
                     state.fit_cache = {}

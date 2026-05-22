@@ -16,6 +16,14 @@ FIT_ERROR_OBJECTIVE: str = "vertical"
 # ---- Sampling & Debugging -----------------------------------------------
 NUM_POINTS_CURVE_ERROR: int = 35000
 
+# Input repaneling samples normalized fit data from the temporary cubic spline
+# used to locate the true leading edge. The non-repaneled normalized input is
+# kept for display and final error reporting.
+ENABLE_INPUT_REPANELING: bool = True
+INPUT_REPANEL_POINTS_PER_SURFACE: int = 51
+INPUT_REPANEL_LE_BUNCH: float = 0.85
+INPUT_REPANEL_TE_BUNCH: float = 0.30
+
 # Number of points used for trailing edge vector calculations
 # Higher numbers provide more robust tangent estimates but may be less sensitive to local geometry
 DEFAULT_TE_VECTOR_POINTS: int = 2

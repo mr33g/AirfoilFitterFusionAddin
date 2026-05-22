@@ -14,6 +14,8 @@ class AirfoilProcessor:
         # Core airfoil data
         self.upper_data = None
         self.lower_data = None
+        self.upper_display_reference_data = None
+        self.lower_display_reference_data = None
         self.upper_te_tangent_vector = None
         self.lower_te_tangent_vector = None
         self._is_blunt_TE = False  # True if original airfoil has thickened TE
@@ -29,6 +31,8 @@ class AirfoilProcessor:
         """
         self.upper_data = None
         self.lower_data = None
+        self.upper_display_reference_data = None
+        self.lower_display_reference_data = None
         self.upper_te_tangent_vector = None
         self.lower_te_tangent_vector = None
         self._is_blunt_TE = False
@@ -38,6 +42,7 @@ class AirfoilProcessor:
             upper, lower, airfoil_name, blunt_te, te_thickness = load_airfoil_data(file_path, logger_func=self.logger_func)
             self.upper_data = upper
             self.lower_data = lower
+            self._load_display_reference_data(file_path, upper, lower)
             self.airfoil_name = airfoil_name
             self._is_blunt_TE = blunt_te
             self._te_thickness = te_thickness
@@ -50,6 +55,32 @@ class AirfoilProcessor:
         except Exception as e:
             self.logger_func(f"Failed to load or initialize airfoil data: {e}")
             return False
+
+    def _load_display_reference_data(self, file_path, fallback_upper, fallback_lower) -> None:
+        """Keep normalized non-repaneled input for display and final error reporting."""
+        try:
+            upper_ref, lower_ref, _name, _blunt_te, _te_thickness = load_airfoil_data(
+                file_path,
+                logger_func=lambda _msg: None,
+                repanel_input=False,
+            )
+            self.upper_display_reference_data = upper_ref
+            self.lower_display_reference_data = lower_ref
+        except Exception as exc:
+            self.logger_func(f"Warning: Could not load non-repaneled display reference: {exc}")
+            self.upper_display_reference_data = fallback_upper.copy()
+            self.lower_display_reference_data = fallback_lower.copy()
+
+    def error_reference_data(self):
+        """Return the display/error reference, falling back to fit data if needed."""
+        if (
+            self.upper_display_reference_data is not None
+            and self.lower_display_reference_data is not None
+            and len(self.upper_display_reference_data) > 0
+            and len(self.lower_display_reference_data) > 0
+        ):
+            return self.upper_display_reference_data, self.lower_display_reference_data
+        return self.upper_data, self.lower_data
 
     def is_trailing_edge_thickened(self):
         """Returns True if the loaded airfoil has a thickened trailing edge."""
