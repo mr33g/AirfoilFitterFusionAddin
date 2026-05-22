@@ -18,6 +18,7 @@ if "%VERSION%"=="" (
     set EFFECTIVE_VERSION=%VERSION%
     set VERSION_ARG=-d Version=%VERSION%
 )
+set OUTPUT_MSI=AirfoilFitterAddin-%EFFECTIVE_VERSION%.msi
 
 set GENERATED_PACKAGE_XML=PackageContents.generated.xml
 set BACKUP_PACKAGE_XML=PackageContents.original.xml
@@ -66,14 +67,14 @@ if errorlevel 1 (
     goto :cleanup
 )
 
-wix build AirfoilFitterAddin.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext %VERSION_ARG% -o AirfoilFitterAddin.msi
+wix build AirfoilFitterAddin.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext %VERSION_ARG% -o "%OUTPUT_MSI%"
 if errorlevel 1 (
     set BUILD_RESULT=1
     goto :cleanup
 )
 
 echo.
-echo Installer built successfully: AirfoilFitterAddin.msi
+echo Installer built successfully: %OUTPUT_MSI%
 
 :cleanup
 if exist "%BACKUP_PACKAGE_XML%" move /y "%BACKUP_PACKAGE_XML%" PackageContents.xml >nul
