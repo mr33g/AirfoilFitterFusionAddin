@@ -392,6 +392,9 @@ def normalize_airfoil_data(
         upper_normalized[:, 1] -= y_shift
         lower_normalized[:, 1] -= y_shift
 
+    # Enforce exact normalized boundary conditions after rotation/scaling.
+    # For split trailing edges, the rotation is based on the TE midpoint, which can leave
+    # the individual upper/lower TE points slightly skewed in x due to floating-point drift.
     upper_normalized[0] = np.array([0.0, 0.0], dtype=float)
     lower_normalized[0] = np.array([0.0, 0.0], dtype=float)
     upper_normalized[-1, 0] = 1.0

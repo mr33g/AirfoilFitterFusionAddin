@@ -24,6 +24,12 @@ STRINGS = {
         "cmd_button_name": "Insert fitted Airfoil",
         "cmd_button_desc": "Fit a spline to an airfoil .dat file in Selig or Lednicer format",
         "failed_to_start": "Failed to start:\n{error}",
+        "update_available": (
+            "A newer version of AirfoilFitter is available.\n\n"
+            "Installed version: {local_version}\n"
+            "Latest version: {remote_version}\n\n"
+            "Download it from the Autodesk App Store:\n{app_store_url}"
+        ),
         "select_chord_line": "Chord Line",
         "select_chord_line_help": "Select a construction line",
         "select_airfoil": "Input File",
@@ -76,6 +82,12 @@ STRINGS = {
         "cmd_button_name": "Angepasstes Profil einfuegen",
         "cmd_button_desc": "Spline an eine .dat-Profildatei im Selig- oder Lednicer-Format anpassen",
         "failed_to_start": "Start fehlgeschlagen:\n{error}",
+        "update_available": (
+            "Eine neuere Version von AirfoilFitter ist verfuegbar.\n\n"
+            "Installierte Version: {local_version}\n"
+            "Neueste Version: {remote_version}\n\n"
+            "Download im Autodesk App Store:\n{app_store_url}"
+        ),
         "select_chord_line": "Sehnenlinie auswaehlen",
         "select_chord_line_help": "Waehlen Sie eine Linie aus",
         "select_airfoil": "Datei auswaehlen",
@@ -128,6 +140,12 @@ STRINGS = {
         "cmd_button_name": "Inserisci profilo adattato",
         "cmd_button_desc": "Adatta una spline a un profilo .dat in formato Selig o Lednicer",
         "failed_to_start": "Avvio non riuscito:\n{error}",
+        "update_available": (
+            "E disponibile una versione piu recente di AirfoilFitter.\n\n"
+            "Versione installata: {local_version}\n"
+            "Versione piu recente: {remote_version}\n\n"
+            "Scaricala da Autodesk App Store:\n{app_store_url}"
+        ),
         "select_chord_line": "Linea di corda",
         "select_chord_line_help": "Seleziona una linea di costruzione",
         "select_airfoil": "File di input",

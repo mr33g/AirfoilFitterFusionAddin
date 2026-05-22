@@ -4,7 +4,7 @@
 	"id":	"9e7d3c2b-1a2b-4c3d-8e4f-5g6h7i8j9k0l",
 	"author":	"Michael Reeg",
 	"description": "B-Spline Airfoil Fitter Add-in for Fusion",
-	"version":	"1.0.0",
+	"version":	"1.1.7",
 	"runOnStartup":	true,
 	"supportedOS":	"windows|mac",
 	"editEnabled":	true
