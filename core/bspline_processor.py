@@ -65,7 +65,6 @@ class BSplineProcessor:
         
         self.upper_original_data: np.ndarray | None = None
         self.lower_original_data: np.ndarray | None = None
-        self.te_thickness_normalized: float = 0.0  # Normalized to chord (0-1)
 
 
     def fit_bspline(
@@ -178,65 +177,6 @@ class BSplineProcessor:
         return bspline_helper.calculate_curvature_comb_data(
             self.upper_curve, self.lower_curve, num_points_per_segment, scale_factor
         )
-
-    def apply_te_thickening_parametric(self) -> bool:
-        """
-        Apply TE thickness to original data, then refit.
-        Uses te_thickness_normalized parameter to calculate delta from original TE thickness.
-        Always operates on original data to prevent error accumulation.
-
-        Returns:
-            bool: True if thickening was applied successfully, False otherwise
-        """
-        if not self.fitted or self.upper_original_data is None or self.lower_original_data is None:
-            return False
-
-        try:
-            modified_upper, modified_lower = bspline_helper.apply_te_thickness_to_reference(
-                self.upper_original_data,
-                self.lower_original_data,
-                self.te_thickness_normalized,
-            )
-
-            # Refit with modified data
-            if self.enforce_g2:
-                success = self._fit_with_g2_optimization(
-                    modified_upper, modified_lower,
-                    (self.num_cp_upper, self.num_cp_lower),
-                    upper_te_dir=None, lower_te_dir=None,
-                    use_existing_knot_vectors=False
-                )
-                if not success:
-                    # Fallback to G1
-                    self._fit_g1_independent(
-                        modified_upper, modified_lower,
-                        (self.num_cp_upper, self.num_cp_lower),
-                        upper_te_dir=None, lower_te_dir=None,
-                        enable_soft_te_handle_quality=False,
-                        use_existing_knot_vectors=False
-                    )
-            else:
-                self._fit_g1_independent(
-                    modified_upper, modified_lower,
-                    (self.num_cp_upper, self.num_cp_lower),
-                    upper_te_dir=None, lower_te_dir=None,
-                    enable_soft_te_handle_quality=False,
-                    use_existing_knot_vectors=False
-                )
-
-            # Update sharp TE status based on final thickness
-            self.is_sharp_te = (abs(self.te_thickness_normalized) < 1e-9)
-            self._finalize_curves()
-
-            return True
-
-        except Exception as e:
-            try:
-                app = adsk.core.Application.get()
-                app.log(f"Error in apply_te_thickening_parametric: {str(e)}")
-            except:
-                pass
-            return False
 
     def insert_knot_at_max_error(self, surface: str, single_span: bool = False) -> bool:
         """

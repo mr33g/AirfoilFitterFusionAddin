@@ -3,7 +3,6 @@ import os
 import math
 import traceback
 import numpy as np
-from scipy import interpolate
 from logic import state
 from core import config
 from core.airfoil_processor import AirfoilProcessor
@@ -97,10 +96,6 @@ def run_fitter(inputs, is_preview):
         if is_preview:
             state.needs_refit = False
 
-        # Save previous TE state before potential refit (for edge case: CP change after TE adjustment)
-        prev_te_applied = state.fit_cache.get('te_applied', False) if state.fit_cache else False
-        prev_te_value = state.fit_cache.get('te_value', 0.0) if state.fit_cache else 0.0
-
         def calc_max_err(curve, data, exponent):
             """Calculate maximum error against the displayed normalized input."""
             if not curve:
@@ -120,22 +115,11 @@ def run_fitter(inputs, is_preview):
             cache['error_upper'] = upper_ref
             cache['error_lower'] = lower_ref
 
-        def update_cache_errors_from_curves(upper_curve, lower_curve, cache):
-            set_error_reference_for_te(cache, cache.get('te_value', 0.0))
-            err_u, max_err_pt_u = calc_max_err(
-                upper_curve,
-                cache['error_upper'],
-                cache.get('param_exponent_upper', 0.5),
-            )
-            err_l, max_err_pt_l = calc_max_err(
-                lower_curve,
-                cache['error_lower'],
-                cache.get('param_exponent_lower', 0.5),
-            )
-            cache['err_u'] = err_u
-            cache['err_l'] = err_l
-            cache['max_err_pt_u'] = max_err_pt_u
-            cache['max_err_pt_l'] = max_err_pt_l
+        def current_te_thickness_normalized():
+            te_input = inputs.itemById('te_thickness')
+            if not te_input or chord_length <= 1.0e-12:
+                return 0.0
+            return max(0.0, te_input.value / chord_length)
 
         if do_new_fit:
             file_path = inputs.itemById('file_path').value
@@ -175,6 +159,14 @@ def run_fitter(inputs, is_preview):
                 if te_input:
                     te_input.value = processor.get_te_thickness() * chord_length
 
+            te_thickness_normalized = current_te_thickness_normalized()
+            fit_upper_data, fit_lower_data = bspline_helper.apply_te_thickness_to_reference(
+                processor.upper_data,
+                processor.lower_data,
+                te_thickness_normalized,
+            )
+            fit_is_thickened = te_thickness_normalized > 1.0e-9
+
             cp_count_upper = config.DEFAULT_CP_COUNT if is_initial_fit else state.current_cp_count_upper
             cp_count_lower = config.DEFAULT_CP_COUNT if is_initial_fit else state.current_cp_count_lower
 
@@ -185,9 +177,9 @@ def run_fitter(inputs, is_preview):
                 bspline.smoothing_weight = smoothness
                 
                 success = bspline.fit_bspline(
-                    processor.upper_data, processor.lower_data,
+                    fit_upper_data, fit_lower_data,
                     num_control_points=(cp_count_upper, cp_count_lower),
-                    is_thickened=processor.is_trailing_edge_thickened(),
+                    is_thickened=fit_is_thickened,
                     upper_te_tangent_vector=processor.upper_te_tangent_vector,
                     lower_te_tangent_vector=processor.lower_te_tangent_vector,
                     enforce_g2=enforce_g2, enforce_g3=enforce_g3,
@@ -242,9 +234,9 @@ def run_fitter(inputs, is_preview):
                         target_lower = cp_count_lower  # New desired count
                     
                     success = bspline.fit_bspline(
-                        processor.upper_data, processor.lower_data,
+                        fit_upper_data, fit_lower_data,
                         num_control_points=(target_upper, target_lower),
-                        is_thickened=processor.is_trailing_edge_thickened(),
+                        is_thickened=fit_is_thickened,
                         upper_te_tangent_vector=processor.upper_te_tangent_vector,
                         lower_te_tangent_vector=processor.lower_te_tangent_vector,
                         enforce_g2=enforce_g2, enforce_g3=enforce_g3,
@@ -277,9 +269,9 @@ def run_fitter(inputs, is_preview):
                 # If both counts are unchanged but other parameters changed, re-fit
                 if cp_diff_upper == 0 and cp_diff_lower == 0:
                     bspline.fit_bspline(
-                        processor.upper_data, processor.lower_data,
+                        fit_upper_data, fit_lower_data,
                         num_control_points=(cp_count_upper, cp_count_lower),
-                        is_thickened=processor.is_trailing_edge_thickened(),
+                        is_thickened=fit_is_thickened,
                         upper_te_tangent_vector=processor.upper_te_tangent_vector,
                         lower_te_tangent_vector=processor.lower_te_tangent_vector,
                         enforce_g2=enforce_g2, enforce_g3=enforce_g3,
@@ -296,7 +288,7 @@ def run_fitter(inputs, is_preview):
                 bspline_helper.apply_te_thickness_to_reference(
                     error_upper_data,
                     error_lower_data,
-                    processor.get_te_thickness(),
+                    te_thickness_normalized,
                 )
             )
             err_u, max_err_pt_u = calc_max_err(
@@ -320,83 +312,14 @@ def run_fitter(inputs, is_preview):
                 'max_err_pt_u': max_err_pt_u, 'max_err_pt_l': max_err_pt_l,  # Store coordinates of max deviation points
                 'raw_upper': error_upper_data.copy(), 'raw_lower': error_lower_data.copy(),
                 'error_upper': initial_error_upper_data.copy(), 'error_lower': initial_error_lower_data.copy(),
-                'fit_upper': processor.upper_data.copy(), 'fit_lower': processor.lower_data.copy(),
+                'fit_upper': fit_upper_data.copy(), 'fit_lower': fit_lower_data.copy(),
                 'param_exponent_upper': bspline.param_exponent_upper,
                 'param_exponent_lower': bspline.param_exponent_lower,
-                'te_applied': False,
-                'te_value': processor.get_te_thickness(),  # Original TE thickness (normalized)
+                'te_value': te_thickness_normalized,
                 'enforce_g2': enforce_g2,
                 'enforce_g3': enforce_g3
             }
             set_error_reference_for_te(state.fit_cache, state.fit_cache['te_value'])
-
-            # Edge case: Reapply TE thickness after CP count change
-            if prev_te_applied:
-                bspline.te_thickness_normalized = prev_te_value
-                bspline.upper_original_data = state.fit_cache['fit_upper'].copy()
-                bspline.lower_original_data = state.fit_cache['fit_lower'].copy()
-                if bspline.apply_te_thickening_parametric():
-                    state.fit_cache['upper_cp_raw'] = bspline.upper_control_points.copy()
-                    state.fit_cache['lower_cp_raw'] = bspline.lower_control_points.copy()
-                    state.fit_cache['upper_knots'] = bspline.upper_knot_vector
-                    state.fit_cache['lower_knots'] = bspline.lower_knot_vector
-                    state.fit_cache['degree_u'] = bspline.degree_upper
-                    state.fit_cache['degree_l'] = bspline.degree_lower
-                    state.fit_cache['is_sharp'] = bspline.is_sharp_te
-                    state.fit_cache['te_applied'] = True
-                    state.fit_cache['te_value'] = prev_te_value
-                    state.fit_cache['param_exponent_upper'] = bspline.param_exponent_upper
-                    state.fit_cache['param_exponent_lower'] = bspline.param_exponent_lower
-                    update_cache_errors_from_curves(
-                        bspline.upper_curve,
-                        bspline.lower_curve,
-                        state.fit_cache,
-                    )
-
-        # 3. Post-Processing - Apply TE thickening parametrically
-        te_thickness = inputs.itemById('te_thickness').value
-        te_thickness_normalized = te_thickness / chord_length
-
-        cached_te_value = state.fit_cache.get('te_value')
-        te_changed = (
-            cached_te_value is None or
-            abs(cached_te_value - te_thickness_normalized) > 1e-9
-        )
-
-        if te_changed and not do_new_fit:
-            # Reconstruct processor state for TE thickening
-            bspline_te = BSplineProcessor()
-            fit_upper = state.fit_cache.get('fit_upper', state.fit_cache['raw_upper'])
-            fit_lower = state.fit_cache.get('fit_lower', state.fit_cache['raw_lower'])
-            bspline_te.upper_original_data = fit_upper.copy()
-            bspline_te.lower_original_data = fit_lower.copy()
-            bspline_te.num_cp_upper = state.current_cp_count_upper
-            bspline_te.num_cp_lower = state.current_cp_count_lower
-            bspline_te.enforce_g2 = state.fit_cache.get('enforce_g2', False)
-            bspline_te.enforce_g3 = state.fit_cache.get('enforce_g3', False)
-            bspline_te.smoothing_weight = inputs.itemById('smoothness_input').valueOne
-            bspline_te.fitted = True
-
-            # Apply TE thickness
-            bspline_te.te_thickness_normalized = te_thickness_normalized
-            if bspline_te.apply_te_thickening_parametric():
-                # Update cache
-                state.fit_cache['upper_cp_raw'] = bspline_te.upper_control_points.copy()
-                state.fit_cache['lower_cp_raw'] = bspline_te.lower_control_points.copy()
-                state.fit_cache['upper_knots'] = bspline_te.upper_knot_vector
-                state.fit_cache['lower_knots'] = bspline_te.lower_knot_vector
-                state.fit_cache['degree_u'] = bspline_te.degree_upper
-                state.fit_cache['degree_l'] = bspline_te.degree_lower
-                state.fit_cache['is_sharp'] = bspline_te.is_sharp_te
-                state.fit_cache['te_applied'] = True
-                state.fit_cache['te_value'] = te_thickness_normalized
-                state.fit_cache['param_exponent_upper'] = bspline_te.param_exponent_upper
-                state.fit_cache['param_exponent_lower'] = bspline_te.param_exponent_lower
-                update_cache_errors_from_curves(
-                    bspline_te.upper_curve,
-                    bspline_te.lower_curve,
-                    state.fit_cache,
-                )
 
         upper_cp = state.fit_cache['upper_cp_raw'].copy()
         lower_cp = state.fit_cache['lower_cp_raw'].copy()

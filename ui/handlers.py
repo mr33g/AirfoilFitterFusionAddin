@@ -286,9 +286,9 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
             # Always trigger preview when parameters change (if line and file are selected)
             if has_selection:
                 refit_ids = ['cp_count_upper', 'cp_count_lower', 'smoothness_input', 'continuity_level',
-                             'file_path', 'chord_line']
-                update_ids = ['te_thickness', 'import_raw', 'rotate_airfoil', 'flip_airfoil',
-                             'curvature_comb', 'comb_scale', 'comb_density']
+                             'file_path', 'chord_line', 'te_thickness']
+                update_ids = ['import_raw', 'rotate_airfoil', 'flip_airfoil',
+                              'curvature_comb', 'comb_scale', 'comb_density']
                 if changed_id in refit_ids:
                     state.needs_refit = True
                 elif changed_id in update_ids:
