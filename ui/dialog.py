@@ -23,41 +23,7 @@ def create_ui_inputs(inputs):
         file_path_input.isVisible = False
         
 
-        # 3. Fitting Parameters (Initially Hidden)
-        
-        groupFitterSettings = inputs.addGroupCommandInput('fitter_settings', t("fitter_settings"))
-        groupFitterSettings.isExpanded = True
-        groupFitterSettings.isEnabledCheckBoxDisplayed = False
-        groupFitterSettings.isVisible = False
-        groupFitterSettingsChildInputs = groupFitterSettings.children
-        
-        # Control Point Count (Integer Slider/Spinner)
-        cp_count_upper = groupFitterSettingsChildInputs.addBoolValueInput('cp_count_upper', t("cp_count_upper"), False, 'resources/AirfoilFitterCommand/add', False)
-        cp_count_upper.text = f'  {state.current_cp_count_upper if state.current_cp_count_upper is not None else config.DEFAULT_CP_COUNT}'
-        cp_count_upper.isVisible = False
-        cp_count_lower = groupFitterSettingsChildInputs.addBoolValueInput('cp_count_lower', t("cp_count_lower"), False, 'resources/AirfoilFitterCommand/add', False)
-        cp_count_lower.text = f'  {state.current_cp_count_lower if state.current_cp_count_lower is not None else config.DEFAULT_CP_COUNT}'
-        cp_count_lower.isVisible = False
-
-        # Reset Button
-
-        reset_button = groupFitterSettingsChildInputs.addBoolValueInput('reset_button', t("reset"), False, 'resources/AirfoilFitterCommand/reset', False)
-        reset_button.isVisible = False
-
-        # Smoothness penalty
-        smoothness = groupFitterSettingsChildInputs.addFloatSliderCommandInput('smoothness_input', t("smoothness_penalty"), "", 0, 0.1, False)
-        smoothness.valueOne = config.DEFAULT_SMOOTHNESS_PENALTY
-        smoothness.isVisible = False
-
-        # 4. Options (Initially Hidden)
-        # Continuity dropdown (G1, G2, G3)
-        continuity_dropdown = groupFitterSettingsChildInputs.addDropDownCommandInput('continuity_level', t("le_continuity"), adsk.core.DropDownStyles.TextListDropDownStyle)
-        continuity_dropdown.listItems.add('G1', False)
-        continuity_dropdown.listItems.add('G2', False)
-        continuity_dropdown.listItems.add('G3', False)
-        continuity_dropdown.listItems[1].isSelected = True  # G2 selected by default
-        continuity_dropdown.isVisible = False
-        
+        # 3. Import Settings (Initially Hidden)
         groupImportSettings = inputs.addGroupCommandInput('import_settings', t("import_settings"))
         groupImportSettings.isExpanded = True
         groupImportSettings.isEnabledCheckBoxDisplayed = False
@@ -80,9 +46,44 @@ def create_ui_inputs(inputs):
         te_thickness.maximumValue = 10
         te_thickness.isMaximumValueInclusive = True
 
-        # Editable Results
-        editable = groupImportSettingsChildInputs.addBoolValueInput('editable_splines', t("keep_adjustable"), True, '', False)
-        editable.isVisible = False
+        # 4. Fitting Parameters (Initially Hidden)
+        
+        groupFitterSettings = inputs.addGroupCommandInput('fitter_settings', t("fitter_settings"))
+        groupFitterSettings.isExpanded = True
+        groupFitterSettings.isEnabledCheckBoxDisplayed = False
+        groupFitterSettings.isVisible = False
+        groupFitterSettingsChildInputs = groupFitterSettings.children
+
+        # Reset row
+        reset_button = groupFitterSettingsChildInputs.addBoolValueInput('reset_button', t("reset"), False, 'resources/AirfoilFitterCommand/reset', False)
+        reset_button.isVisible = False
+
+        initial_cp_count = groupFitterSettingsChildInputs.addIntegerSpinnerCommandInput(
+            'initial_cp_count', t("initial_cp_count"), 5, 12, 1, config.DEFAULT_CP_COUNT
+        )
+        initial_cp_count.isVisible = False
+        
+        # Control Point Count (Integer Slider/Spinner)
+        cp_count_upper = groupFitterSettingsChildInputs.addBoolValueInput('cp_count_upper', t("cp_count_upper"), False, 'resources/AirfoilFitterCommand/add', False)
+        cp_count_upper.text = f'  {state.current_cp_count_upper if state.current_cp_count_upper is not None else config.DEFAULT_CP_COUNT}'
+        cp_count_upper.isVisible = False
+        cp_count_lower = groupFitterSettingsChildInputs.addBoolValueInput('cp_count_lower', t("cp_count_lower"), False, 'resources/AirfoilFitterCommand/add', False)
+        cp_count_lower.text = f'  {state.current_cp_count_lower if state.current_cp_count_lower is not None else config.DEFAULT_CP_COUNT}'
+        cp_count_lower.isVisible = False
+
+        # Smoothness penalty
+        smoothness = groupFitterSettingsChildInputs.addFloatSliderCommandInput('smoothness_input', t("smoothness_penalty"), "", 0, 0.1, False)
+        smoothness.valueOne = config.DEFAULT_SMOOTHNESS_PENALTY
+        smoothness.isVisible = False
+
+        # Options (Initially Hidden)
+        # Continuity dropdown (G1, G2, G3)
+        continuity_dropdown = groupFitterSettingsChildInputs.addDropDownCommandInput('continuity_level', t("le_continuity"), adsk.core.DropDownStyles.TextListDropDownStyle)
+        continuity_dropdown.listItems.add('G1', False)
+        continuity_dropdown.listItems.add('G2', False)
+        continuity_dropdown.listItems.add('G3', False)
+        continuity_dropdown.listItems[1].isSelected = True  # G2 selected by default
+        continuity_dropdown.isVisible = False
 
         # 5. Curvature Comb (Initially Hidden)
         curvature_comb = inputs.addBoolValueInput('curvature_comb', t("curvature_comb"), True, 'resources/AirfoilFitterCommand/comb', False)
@@ -95,6 +96,10 @@ def create_ui_inputs(inputs):
         comb_density = inputs.addIntegerSliderCommandInput('comb_density', t("comb_density"), 10, 500, False)
         comb_density.valueOne = 200
         comb_density.isVisible = False
+
+        # Editable Results
+        editable = inputs.addBoolValueInput('editable_splines', t("keep_adjustable"), True, '', False)
+        editable.isVisible = False
 
         raw = inputs.addBoolValueInput('import_raw', t("show_input_data"), True, '', False)
         raw.isVisible = False

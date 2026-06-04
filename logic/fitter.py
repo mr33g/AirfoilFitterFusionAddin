@@ -121,6 +121,18 @@ def run_fitter(inputs, is_preview):
                 return 0.0
             return max(0.0, te_input.value / chord_length)
 
+        def selected_initial_cp_count():
+            try:
+                initial_cp_count = inputs.itemById('initial_cp_count')
+                if initial_cp_count:
+                    if hasattr(initial_cp_count, 'value'):
+                        return max(4, min(19, int(initial_cp_count.value)))
+                    if initial_cp_count.selectedItem:
+                        return max(4, min(19, int(initial_cp_count.selectedItem.name)))
+            except Exception:
+                pass
+            return config.DEFAULT_CP_COUNT
+
         if do_new_fit:
             file_path = inputs.itemById('file_path').value
             if not file_path or not os.path.exists(file_path):
@@ -150,7 +162,11 @@ def run_fitter(inputs, is_preview):
             error_upper_data, error_lower_data = processor.error_reference_data()
             
             # Determine operation type based on state
-            is_initial_fit = (state.current_cp_count_upper is None and state.current_cp_count_lower is None)
+            is_initial_fit = (
+                not state.fit_cache
+                or state.current_cp_count_upper is None
+                or state.current_cp_count_lower is None
+            )
 
             # Set TE thickness input to match the newly loaded airfoil on initial load.
             # This must also write zero so a previous file's TE value cannot leak.
@@ -167,8 +183,17 @@ def run_fitter(inputs, is_preview):
             )
             fit_is_thickened = te_thickness_normalized > 1.0e-9
 
-            cp_count_upper = config.DEFAULT_CP_COUNT if is_initial_fit else state.current_cp_count_upper
-            cp_count_lower = config.DEFAULT_CP_COUNT if is_initial_fit else state.current_cp_count_lower
+            initial_cp_count = selected_initial_cp_count()
+            cp_count_upper = (
+                state.current_cp_count_upper
+                if state.current_cp_count_upper is not None
+                else initial_cp_count
+            )
+            cp_count_lower = (
+                state.current_cp_count_lower
+                if state.current_cp_count_lower is not None
+                else initial_cp_count
+            )
 
             bspline = BSplineProcessor()
                 

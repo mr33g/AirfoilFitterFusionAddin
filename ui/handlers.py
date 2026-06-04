@@ -47,24 +47,38 @@ def update_cp_count_labels(inputs):
     try:
         cp_count_upper = inputs.itemById('cp_count_upper')
         if cp_count_upper:
-            current_count = state.current_cp_count_upper if state.current_cp_count_upper is not None else config.DEFAULT_CP_COUNT
+            current_count = state.current_cp_count_upper if state.current_cp_count_upper is not None else get_initial_cp_count(inputs)
             cp_count_upper.text = f'  {current_count}'
         
         cp_count_lower = inputs.itemById('cp_count_lower')
         if cp_count_lower:
-            current_count = state.current_cp_count_lower if state.current_cp_count_lower is not None else config.DEFAULT_CP_COUNT
+            current_count = state.current_cp_count_lower if state.current_cp_count_lower is not None else get_initial_cp_count(inputs)
             cp_count_lower.text = f'  {current_count}'
     except Exception as e:
         pass
+
+def get_initial_cp_count(inputs):
+    """Return the selected initial control point count."""
+    try:
+        initial_cp_count = inputs.itemById('initial_cp_count')
+        if initial_cp_count:
+            if hasattr(initial_cp_count, 'value'):
+                return max(4, min(19, int(initial_cp_count.value)))
+            if initial_cp_count.selectedItem:
+                return max(4, min(19, int(initial_cp_count.selectedItem.name)))
+    except Exception:
+        pass
+    return config.DEFAULT_CP_COUNT
 
 def reset_fitter_settings_to_defaults(inputs, resetAll=False):
     """Reset all fitter settings to their default values. Preserves import settings."""
     try:
         # Reset control point counts in state (these are stored in state, not in the UI controls)
+        initial_cp_count = get_initial_cp_count(inputs)
         state.fit_cache = {}
         state.preview_graphics = None
-        state.current_cp_count_upper = None
-        state.current_cp_count_lower = None
+        state.current_cp_count_upper = initial_cp_count
+        state.current_cp_count_lower = initial_cp_count
         
         # Update labels to show default values
         update_cp_count_labels(inputs)  
@@ -176,8 +190,9 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
                     
                     # Reset state variables related to fitting
                     state.fit_cache = {}
-                    state.current_cp_count_upper = None
-                    state.current_cp_count_lower = None
+                    initial_cp_count = get_initial_cp_count(inputs)
+                    state.current_cp_count_upper = initial_cp_count
+                    state.current_cp_count_lower = initial_cp_count
                     
                     # Trigger preview update when file is selected (if line is also selected)
                     line_select = inputs.itemById('chord_line')
@@ -221,7 +236,7 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
             file_path_input = inputs.itemById('file_path')
             has_selection = chord_line_input.selectionCount > 0 and file_path_input.value != ""
             
-            toggle_ids = ['cp_count_upper', 'cp_count_lower', 'te_thickness', 'smoothness_input', 'continuity_level',
+            toggle_ids = ['initial_cp_count', 'cp_count_upper', 'cp_count_lower', 'te_thickness', 'smoothness_input', 'continuity_level',
                           'import_raw', 
                           'rotate_airfoil', 'flip_airfoil', 'curvature_comb', 
                           'comb_scale', 'comb_density', 'editable_splines', 'fitter_settings', 'import_settings', 'reset_button']
