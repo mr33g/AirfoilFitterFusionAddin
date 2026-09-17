@@ -18,6 +18,7 @@ EXCLUDED_DIRS = {
     '.vscode',       # IDE settings
     '.idea',         # IDE settings
     '.pytest_cache', # Test cache
+    'tests',         # Development-only regression checks
     'dist',          # Distribution artifacts
     'build',         # Build artifacts
     'doc',           # Papers

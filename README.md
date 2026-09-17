@@ -46,7 +46,7 @@ https://apps.autodesk.com/FUSION/en/Detail/Index?id=7312110669169312529&appLang=
 7. **Keep Adjustable** if you need to modify control points after insertion
 8. **Curvature Comb** analyze the airfoils curvature in the preview
 9. **Show Input Data** Overlays the input data points over the generated Spline
-8. **Click OK** to insert the final geometry
+8. **Click OK** to insert the final geometry into a new sketch in the chord line's component (for both fixed and adjustable splines).
 
 ## Features
 
@@ -117,11 +117,13 @@ NACA 2412
 
 ## Troubleshooting
 
-### "The selected sketch has lost its reference plane"
+### Sketch supports and reference-plane errors
 
-This usually means the sketch that holds the desired chord-line was created on a body and this body was later converted into a component. AirfoilFitter rejects that chord-line selection because Fusion can no longer resolve the sketch plane reliably.
+Face-supported sketches are accepted even when Fusion cannot retrieve their original reference plane at the current timeline position. The add-in first tries to reuse the source support; if it is unavailable, it attempts a zero-offset construction plane based on the source sketch. This helper remains in the model because the output depends on it. The add-in does not redefine the source sketch or rearrange the timeline.
 
-Fix: repair the timeline by either deriving the component after using AirfoilFitter, or before creating the sketch.
+Final airfoils always go into a new sketch, including fixed splines at 0 degrees. A 180-degree rotation reuses the same support as 0 degrees. At 90 or 270 degrees, an origin plane is reused when it coincides with the required plane; otherwise an angled plane is created.
+
+If Fusion rejects support creation, the error dialog reports that operation and the Text Commands log (Ctrl+Alt+C) contains the underlying exception. This is a failure to create the output support, not an automatic diagnosis that the source sketch is broken.
 
 ### "Dependencies Missing" on startup
 

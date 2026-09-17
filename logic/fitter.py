@@ -9,6 +9,7 @@ from core.airfoil_processor import AirfoilProcessor
 from core.bspline_processor import BSplineProcessor
 from utils.fusion_geometry_helper import create_fusion_spline, import_splines_via_dxf
 from utils import bspline_helper
+from utils.sketch_plane_helper import AirfoilPlaneError, resolve_airfoil_plane, add_airfoil_sketch
 from logic.preview_renderer import render_preview
 from utils.i18n import t
 
@@ -391,104 +392,15 @@ def run_fitter(inputs, is_preview):
         else:
             file_path = inputs.itemById('file_path').value
             sketch_name = os.path.splitext(os.path.basename(file_path))[0] if file_path else "Fitted Airfoil"
-            parent_comp = selected_line.parentSketch.parentComponent
-            
-            def add_sketch_on_plane(target_plane_obj):
-                sketches = parent_comp.sketches
-                previous_occurrence = None
-                try:
-                    if hasattr(sketches, 'occurrenceForCreation'):
-                        previous_occurrence = sketches.occurrenceForCreation
-                        sketches.occurrenceForCreation = selected_line.parentSketch.assemblyContext
-                    return sketches.add(target_plane_obj)
-                finally:
-                    if hasattr(sketches, 'occurrenceForCreation'):
-                        sketches.occurrenceForCreation = previous_occurrence
+            source_sketch = selected_line.parentSketch
+            target_plane = resolve_airfoil_plane(
+                selected_line, state.rotation_state, start_pt_world, z_axis_world,
+                design.rootComponent, sketch_name, app.log,
+            )
 
-            def warn_missing_reference_plane():
-                app.log(
-                    "Warning: Selected sketch has lost its reference plane. "
-                    "Please repair the timeline or redefine the sketch plane."
-                )
-                app.userInterface.messageBox(t("missing_sketch_reference_plane"))
-                return False
-
-            def get_reference_plane_or_warn(sketch_obj):
-                try:
-                    reference_plane = sketch_obj.referencePlane
-                except RuntimeError as ex:
-                    app.log(
-                        "Warning: Failed to resolve sketch reference plane. "
-                        f"Fusion reported: {ex}"
-                    )
-                    return None
-                except Exception as ex:
-                    app.log(
-                        "Warning: Unexpected error while resolving sketch reference plane. "
-                        f"{ex}"
-                    )
-                    return None
-
-                return reference_plane if reference_plane else None
-
-            fallback_to_source_sketch = False
-            target_plane = None
-
-            if state.rotation_state == 0:
-                if is_editable:
-                    target_plane = get_reference_plane_or_warn(selected_line.parentSketch)
-                    if not target_plane:
-                        return warn_missing_reference_plane()
-                else:
-                    fallback_to_source_sketch = True
-            else:
-                root_comp = design.rootComponent
-                tol = 1e-6
-                standard_plane = None
-                point_on_plane = start_pt_world
-
-                # A rotated plane only coincides with an origin plane if both its normal
-                # and its offset from the origin match that plane.
-                if abs(abs(z_axis_world.z) - 1.0) < tol and abs(point_on_plane.z) < tol:
-                    standard_plane = root_comp.xYConstructionPlane
-                elif abs(abs(z_axis_world.y) - 1.0) < tol and abs(point_on_plane.y) < tol:
-                    standard_plane = root_comp.xZConstructionPlane
-                elif abs(abs(z_axis_world.x) - 1.0) < tol and abs(point_on_plane.x) < tol:
-                    standard_plane = root_comp.yZConstructionPlane
-
-                if standard_plane:
-                    target_plane = standard_plane
-                else:
-                    reference_plane = get_reference_plane_or_warn(selected_line.parentSketch)
-                    if not reference_plane:
-                        return warn_missing_reference_plane()
-
-                    plane_input = parent_comp.constructionPlanes.createInput()
-                    if selected_line.assemblyContext:
-                        plane_input.occurrenceForCreation = selected_line.assemblyContext
-                    plane_input.setByAngle(selected_line, adsk.core.ValueInput.createByReal(-theta), reference_plane)
-                    target_plane = parent_comp.constructionPlanes.add(plane_input)
-                    try:
-                        target_plane.isLightBulbOn = False
-                    except Exception:
-                        pass
-                    target_plane.name = sketch_name
-                                                                               
-            if fallback_to_source_sketch:
-                target_sketch = selected_line.parentSketch
-                target_sketch.is3D = True
-                u_final = transform_pts(upper_cp, target_sketch)
-                l_final = transform_pts(lower_cp, target_sketch)
-                create_fusion_spline(target_sketch, u_final, state.fit_cache['upper_knots'], state.fit_cache['degree_u'])
-                create_fusion_spline(target_sketch, l_final, state.fit_cache['lower_knots'], state.fit_cache['degree_l'])
-                if not is_sharp:
-                    target_sketch.sketchCurves.sketchLines.addByTwoPoints(
-                        adsk.core.Point3D.create(u_final[-1,0], u_final[-1,1], 0),
-                        adsk.core.Point3D.create(l_final[-1,0], l_final[-1,1], 0)
-                    )
-            elif is_editable:
+            if is_editable:
                 # Create a temporary sketch on the target plane to use modelToSketchSpace for accurate transformation
-                temp_sketch = add_sketch_on_plane(target_plane)
+                temp_sketch = add_airfoil_sketch(source_sketch, target_plane, sketch_name)
                 u_dxf = transform_pts(upper_cp, temp_sketch); l_dxf = transform_pts(lower_cp, temp_sketch)
                 # If airfoil is flipped, swap the chord start and end points
                 if state.flip_orientation:
@@ -504,7 +416,7 @@ def run_fitter(inputs, is_preview):
                 )
                 if temp_sketch != target_sketch: temp_sketch.deleteMe()
             else:
-                target_sketch = add_sketch_on_plane(target_plane); target_sketch.name = sketch_name
+                target_sketch = add_airfoil_sketch(source_sketch, target_plane, sketch_name)
                 u_final = transform_pts(upper_cp, target_sketch); l_final = transform_pts(lower_cp, target_sketch)
                 create_fusion_spline(target_sketch, u_final, state.fit_cache['upper_knots'], state.fit_cache['degree_u'])
                 create_fusion_spline(target_sketch, l_final, state.fit_cache['lower_knots'], state.fit_cache['degree_l'])
@@ -513,6 +425,10 @@ def run_fitter(inputs, is_preview):
         
                     
         return True
+    except AirfoilPlaneError as exc:
+        app.log(f"AirfoilFitter plane creation failed: {traceback.format_exc()}")
+        app.userInterface.messageBox(t("failed_create_airfoil_plane", error=str(exc)))
+        return False
     except:
         app.log(f"Error: {traceback.format_exc()}")
         app.userInterface.messageBox(t("generic_error"))
