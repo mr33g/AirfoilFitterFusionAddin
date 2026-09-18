@@ -119,7 +119,7 @@ NACA 2412
 
 ### Sketch supports and reference-plane errors
 
-Face-supported sketches are accepted even when Fusion cannot retrieve their original reference plane at the current timeline position. The add-in first tries to reuse the source support; if it is unavailable, it attempts a zero-offset construction plane based on the source sketch. This helper remains in the model because the output depends on it. The add-in does not redefine the source sketch or rearrange the timeline.
+Face-supported sketches are accepted even when Fusion cannot retrieve their original reference plane at the current timeline position. The add-in first tries to reuse the source support; if it is unavailable, it first tries using the source sketch directly. Only if the consuming API rejects that reference does it create a zero-offset construction plane based on the sketch. Any such helper remains in the model because the output depends on it. The add-in does not redefine the source sketch or rearrange the timeline.
 
 Final airfoils always go into a new sketch, including fixed splines at 0 degrees. A 180-degree rotation reuses the same support as 0 degrees. At 90 or 270 degrees, an origin plane is reused when it coincides with the required plane; otherwise an angled plane is created.
 

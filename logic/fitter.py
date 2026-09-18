@@ -395,12 +395,13 @@ def run_fitter(inputs, is_preview):
             source_sketch = selected_line.parentSketch
             target_plane = resolve_airfoil_plane(
                 selected_line, state.rotation_state, start_pt_world, z_axis_world,
-                design.rootComponent, sketch_name, app.log,
+                design.rootComponent, sketch_name,
             )
 
             if is_editable:
                 # Create a temporary sketch on the target plane to use modelToSketchSpace for accurate transformation
-                temp_sketch = add_airfoil_sketch(source_sketch, target_plane, sketch_name)
+                temp_sketch, target_plane = add_airfoil_sketch(
+                    source_sketch, target_plane, sketch_name, return_support=True)
                 u_dxf = transform_pts(upper_cp, temp_sketch); l_dxf = transform_pts(lower_cp, temp_sketch)
                 # If airfoil is flipped, swap the chord start and end points
                 if state.flip_orientation:
@@ -412,7 +413,8 @@ def run_fitter(inputs, is_preview):
                 target_sketch = import_splines_via_dxf(
                     temp_sketch, target_plane, u_dxf, state.fit_cache['upper_knots'], state.fit_cache['degree_u'], 
                     l_dxf, state.fit_cache['lower_knots'], state.fit_cache['degree_l'], is_sharp,
-                    chord_start_aligned, chord_end_aligned, sketch_name=sketch_name
+                    chord_start_aligned, chord_end_aligned, sketch_name=sketch_name,
+                    source_sketch=source_sketch
                 )
                 if temp_sketch != target_sketch: temp_sketch.deleteMe()
             else:

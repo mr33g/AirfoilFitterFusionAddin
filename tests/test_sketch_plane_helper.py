@@ -15,6 +15,7 @@ from unittest.mock import Mock, patch
 def load_helper():
     adsk = ModuleType('adsk')
     core = ModuleType('adsk.core')
+    core.Application = SimpleNamespace(get=lambda: SimpleNamespace(log=Mock()))
     core.ValueInput = SimpleNamespace(createByReal=lambda value: value)
     adsk.core = core
     spec = importlib.util.spec_from_file_location(
@@ -53,12 +54,14 @@ class PlaneTests(unittest.TestCase):
         self.planes = []
         self.fail_offset = False
         self.fail_angle = False
+        self.reject_sketch_angle = False
 
         def create_input():
             result = SimpleNamespace(
                 occurrenceForCreation=None,
                 setByOffset=Mock(side_effect=lambda *args: not self.fail_offset),
-                setByAngle=Mock(side_effect=lambda *args: not self.fail_angle),
+                setByAngle=Mock(side_effect=lambda *args: not self.fail_angle and not (
+                    self.reject_sketch_angle and isinstance(args[2], SourceSketch))),
             )
             self.inputs.append(result)
             return result
@@ -85,11 +88,10 @@ class PlaneTests(unittest.TestCase):
         self.line = SimpleNamespace(parentSketch=self.sketch, assemblyContext=None)
         self.point = SimpleNamespace(x=3.0, y=4.0, z=5.0)
         self.normal = SimpleNamespace(x=0.0, y=0.0, z=1.0)
-        self.log = Mock()
 
     def resolve(self, rotation):
         return helper.resolve_airfoil_plane(
-            self.line, rotation, self.point, self.normal, self.root, 'NACA', self.log)
+            self.line, rotation, self.point, self.normal, self.root, 'NACA')
 
     def test_valid_face_or_construction_support_is_reused_for_zero_and_half_turn(self):
         for rotation in (0, 2):
@@ -103,18 +105,16 @@ class PlaneTests(unittest.TestCase):
             with self.subTest(message=message):
                 self.sketch.error = RuntimeError(message)
                 plane = self.resolve(0)
-                plane.definition_input.setByOffset.assert_called_once_with(self.sketch, 0)
-                self.assertFalse(plane.isLightBulbOn)
-                plane.deleteMe.assert_not_called()
-                self.assertTrue(any(message in call.args[0] for call in self.log.call_args_list))
+                self.assertIs(plane, self.sketch)
+                self.assertEqual(self.planes, [])
 
     def test_null_and_invalid_reference_use_sketch_support(self):
         for reference in (None, SimpleNamespace(isValid=False)):
             with self.subTest(reference=reference):
                 self.sketch.reference = reference
                 plane = self.resolve(2)
-                plane.definition_input.setByOffset.assert_called_once_with(self.sketch, 0)
-                plane.definition_input.setByAngle.assert_not_called()
+                self.assertIs(plane, self.sketch)
+                self.assertEqual(self.planes, [])
 
     def test_half_turn_does_not_substitute_origin_plane_for_source_support(self):
         self.point.z = 0
@@ -145,6 +145,7 @@ class PlaneTests(unittest.TestCase):
 
     def test_angled_plane_keeps_its_fallback_support_alive(self):
         self.sketch.error = RuntimeError('face no longer exists')
+        self.reject_sketch_angle = True
         plane = self.resolve(1)
         self.assertEqual(len(self.planes), 2)
         fallback, rotated = self.planes
@@ -154,13 +155,62 @@ class PlaneTests(unittest.TestCase):
         fallback.deleteMe.assert_not_called()
         rotated.deleteMe.assert_not_called()
 
+    def test_direct_angle_uses_only_the_final_plane(self):
+        self.sketch.reference = None
+        plane = self.resolve(1)
+        self.assertEqual(len(self.planes), 1)
+        plane.definition_input.setByAngle.assert_called_once_with(
+            self.line, -math.pi / 2, self.sketch)
+        plane.definition_input.setByOffset.assert_not_called()
+
+    def test_direct_new_sketch_needs_no_helper(self):
+        self.sketch.reference = None
+        output = SimpleNamespace(name='', assemblyContext=None)
+        self.component.sketches.addWithoutEdges.return_value = output
+        result, support = helper.add_airfoil_sketch(
+            self.sketch, self.resolve(0), 'NACA', return_support=True)
+        self.assertIs(result, output)
+        self.assertIs(support, self.sketch)
+        self.assertEqual(self.planes, [])
+
+    def test_rejected_new_sketch_returns_effective_support_for_dxf(self):
+        output = SimpleNamespace(name='', assemblyContext=None)
+        for rejection in (None, RuntimeError('unsupported sketch')):
+            with self.subTest(rejection=rejection):
+                self.component.sketches.addWithoutEdges.side_effect = [rejection, output]
+                result, support = helper.add_airfoil_sketch(
+                    self.sketch, self.sketch, 'NACA', return_support=True)
+                self.assertIs(result, output)
+                self.assertIs(support, self.planes[-1])
+                support.definition_input.setByOffset.assert_called_once_with(self.sketch, 0)
+
+    def test_partial_import_vetoes_retry_and_helper_creation(self):
+        operation = Mock(side_effect=RuntimeError('partial import'))
+        with self.assertRaisesRegex(RuntimeError, 'partial import'):
+            helper.with_sketch_support(self.sketch, self.sketch, 'NACA',
+                                       operation, can_retry=lambda: False)
+        operation.assert_called_once_with(self.sketch)
+        self.assertEqual(self.planes, [])
+
+    def test_rejected_direct_operation_retries_once_with_retained_plane(self):
+        result = object()
+        operation = Mock(side_effect=[RuntimeError('unsupported sketch'), result])
+        actual, support = helper.with_sketch_support(
+            self.sketch, self.sketch, 'NACA', operation)
+        self.assertIs(actual, result)
+        self.assertEqual(operation.call_count, 2)
+        self.assertIs(operation.call_args.args[0], support)
+        self.assertEqual(len(self.planes), 1)
+        support.deleteMe.assert_not_called()
+
     def test_fallback_and_angled_creation_preserve_occurrence_context(self):
         occurrence = object()
         self.sketch.assemblyContext = occurrence
         self.line.assemblyContext = occurrence
         self.sketch.error = RuntimeError('face unavailable')
+        self.reject_sketch_angle = True
         self.resolve(1)
-        self.assertEqual(len(self.inputs), 2)
+        self.assertEqual(len(self.inputs), 3)
         for plane_input in self.inputs:
             self.assertIs(plane_input.occurrenceForCreation, occurrence)
 
@@ -168,7 +218,7 @@ class PlaneTests(unittest.TestCase):
         self.sketch.reference = None
         self.fail_offset = True
         with self.assertRaisesRegex(helper.AirfoilPlaneError, 'zero-offset'):
-            self.resolve(0)
+            helper._create_support_plane(self.sketch, 'NACA')
         self.assertEqual(self.planes, [])
 
     def test_failed_angle_is_reported_instead_of_inserting_in_source_sketch(self):
@@ -182,7 +232,7 @@ class PlaneTests(unittest.TestCase):
         self.component.constructionPlanes.add.return_value = None
         self.sketch.reference = None
         with self.assertRaisesRegex(helper.AirfoilPlaneError, 'did not create'):
-            self.resolve(0)
+            helper._create_support_plane(self.sketch, 'NACA')
 
     def test_final_sketch_is_new_and_has_no_projected_face_edges(self):
         new_sketch = SimpleNamespace(name='', assemblyContext=None)

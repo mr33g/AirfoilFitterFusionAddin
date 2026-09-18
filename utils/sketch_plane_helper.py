@@ -9,23 +9,21 @@ class AirfoilPlaneError(RuntimeError):
     """Fusion could not supply or construct the required sketch support."""
 
 
-def _source_support(sketch, name, log):
-    """Prefer the original support; only create a helper when lookup fails.
-
-    A sketch can still define a usable plane after its original face has ceased
-    to exist at the current timeline position. Fusion accepts a sketch as the
-    reference for a zero-offset construction plane. Keep that helper: subsequent
-    sketches/angled planes depend on it. Do not redefine the user's sketch or
-    roll the user's timeline back to recover a historical BRepFace.
-    """
+def _source_support(sketch):
+    """Use the historical support when available, otherwise try the sketch itself."""
     try:
         support = sketch.referencePlane
         if support and support.isValid:
             return support
-        log("AirfoilFitter: source sketch referencePlane is unavailable.")
-    except Exception as exc:
-        log(f"AirfoilFitter: cannot read source sketch referencePlane: {exc}")
+    except Exception:
+        # A historical reference lookup can fail for an otherwise healthy sketch.
+        pass
 
+    return sketch
+
+
+def _create_support_plane(sketch, name):
+    """Retain a zero-offset support only when a consuming API rejects the sketch."""
     planes = sketch.parentComponent.constructionPlanes
     plane_input = planes.createInput()
     if sketch.assemblyContext:
@@ -42,19 +40,38 @@ def _source_support(sketch, name, log):
         ) from exc
     plane.name = f"{name} - sketch support"
     plane.isLightBulbOn = False
-    log(f"AirfoilFitter: retained zero-offset support for sketch '{sketch.name}'.")
     return plane
 
 
+def with_sketch_support(source_sketch, support, name, operation, can_retry=lambda: True):
+    """Return (result, effective support); retry only rejected direct-sketch input.
+
+    Import callers must veto a retry if Fusion has already created output.
+    Never delete a helper after downstream features have started using it.
+    """
+    try:
+        result = operation(support)
+        if not result:
+            raise AirfoilPlaneError("Fusion did not create the requested geometry.")
+    except Exception:
+        if support != source_sketch or not can_retry():
+            raise
+        support = _create_support_plane(source_sketch, name)
+        result = operation(support)
+        if not result:
+            raise AirfoilPlaneError("Fusion did not create the requested geometry with a support plane.")
+    return result, support
+
+
 def resolve_airfoil_plane(selected_line, rotation_state, point_world, normal_world,
-                          root_component, name, log):
+                          root_component, name):
     """Return a planar entity shared by the fixed and adjustable output paths."""
     source_sketch = selected_line.parentSketch
     rotation_state %= 4
 
     # A half-turn changes the airfoil orientation, not its supporting plane.
     if rotation_state in (0, 2):
-        return _source_support(source_sketch, name, log)
+        return _source_support(source_sketch)
 
     # Reuse an origin plane only if both the normal and the offset match.
     # Inputs here are world coordinates, so these must be ROOT origin planes.
@@ -68,19 +85,21 @@ def resolve_airfoil_plane(selected_line, rotation_state, point_world, normal_wor
                 and abs(getattr(point_world, coordinate)) < tol):
             return plane
 
-    support = _source_support(source_sketch, name, log)
+    support = _source_support(source_sketch)
     planes = source_sketch.parentComponent.constructionPlanes
-    plane_input = planes.createInput()
-    if selected_line.assemblyContext:
-        plane_input.occurrenceForCreation = selected_line.assemblyContext
-    try:
+    def create_angled(candidate):
+        plane_input = planes.createInput()
+        if selected_line.assemblyContext:
+            plane_input.occurrenceForCreation = selected_line.assemblyContext
         theta = rotation_state * math.pi / 2.0
         if not plane_input.setByAngle(
-                selected_line, adsk.core.ValueInput.createByReal(-theta), support):
+                selected_line, adsk.core.ValueInput.createByReal(-theta), candidate):
             raise AirfoilPlaneError("Fusion rejected the angled airfoil plane.")
-        plane = planes.add(plane_input)
-        if not plane:
-            raise AirfoilPlaneError("Fusion did not create the angled airfoil plane.")
+        return planes.add(plane_input)
+
+    try:
+        plane, _ = with_sketch_support(
+            source_sketch, support, name, create_angled)
     except Exception as exc:
         raise AirfoilPlaneError(f"Cannot construct the rotated airfoil plane: {exc}") from exc
     plane.name = name
@@ -88,12 +107,14 @@ def resolve_airfoil_plane(selected_line, rotation_state, point_world, normal_wor
     return plane
 
 
-def add_airfoil_sketch(source_sketch, support, name):
+def add_airfoil_sketch(source_sketch, support, name, return_support=False):
     """Create an empty output sketch in the source component and context."""
     occurrence = source_sketch.assemblyContext
     # occurrenceForCreation is a method argument, not a Sketches property.
     # Avoid projecting the face boundary into the airfoil's new sketch.
-    sketch = source_sketch.parentComponent.sketches.addWithoutEdges(support, occurrence)
+    sketch, support = with_sketch_support(
+        source_sketch, support, name,
+        lambda candidate: source_sketch.parentComponent.sketches.addWithoutEdges(candidate, occurrence))
     if not sketch:
         raise AirfoilPlaneError("Fusion did not create the airfoil sketch.")
     sketch.name = name
@@ -103,4 +124,4 @@ def add_airfoil_sketch(source_sketch, support, name):
         sketch = sketch.createForAssemblyContext(occurrence)
         if not sketch:
             raise AirfoilPlaneError("Fusion did not provide the airfoil sketch occurrence.")
-    return sketch
+    return (sketch, support) if return_support else sketch
