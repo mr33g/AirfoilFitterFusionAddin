@@ -1,20 +1,21 @@
 import adsk.core, adsk.fusion
 import os
-import math
 import traceback
 import numpy as np
 from logic import state
 from core import config
 from core.airfoil_processor import AirfoilProcessor
 from core.bspline_processor import BSplineProcessor
-from utils.fusion_geometry_helper import create_fusion_spline, import_splines_via_dxf
+from utils.fusion_geometry_helper import create_fusion_spline
+from logic.airfoil_frame import chord_frame
+from logic import custom_feature
 from utils import bspline_helper
 from utils.sketch_plane_helper import AirfoilPlaneError, resolve_airfoil_plane, add_airfoil_sketch
 from logic.preview_renderer import render_preview
 from utils.i18n import t
 
 
-def run_fitter(inputs, is_preview):
+def run_fitter(inputs, is_preview, initialize_te=True):
     """Core logic for fitting and geometry generation."""
     app = adsk.core.Application.get()
     
@@ -41,56 +42,11 @@ def run_fitter(inputs, is_preview):
         if not selected_line:
             return False
             
-        # Save original chord line endpoints for alignment (before any flip transformation)
-        chord_start_world_original = selected_line.startSketchPoint.worldGeometry
-        chord_end_world_original = selected_line.endSketchPoint.worldGeometry
-        
-        start_pt_world = selected_line.startSketchPoint.worldGeometry
-        end_pt_world = selected_line.endSketchPoint.worldGeometry
-        chord_vec_world = adsk.core.Vector3D.create(end_pt_world.x - start_pt_world.x, 
-                                                   end_pt_world.y - start_pt_world.y, 
-                                                   end_pt_world.z - start_pt_world.z)
-        chord_length = chord_vec_world.length
-        
-        # Build 3D transformation matrix
-        theta = state.rotation_state * (math.pi / 2.0)
-        sketch = selected_line.parentSketch
-        mat = sketch.transform
-        if sketch.assemblyContext:
-            mat.transformBy(sketch.assemblyContext.transform2)
-            
-        sketch_normal_world = adsk.core.Vector3D.create(mat.getCell(0, 2), mat.getCell(1, 2), mat.getCell(2, 2))
-        sketch_normal_world.normalize()
-        
-        x_axis_world = chord_vec_world.copy()
-        x_axis_world.normalize()
-        
-        # Calculate y_axis_in_plane before flipping (to preserve orientation)
-        y_axis_in_plane = sketch_normal_world.crossProduct(x_axis_world)
-        y_axis_in_plane.normalize()
-        
-        # Apply flip orientation: reverse direction along chord line (nose to tail)
-        if state.flip_orientation:
-            x_axis_world.scaleBy(-1.0)
-            # When flipped, start from the end point instead
-            start_pt_world = end_pt_world
-            # Keep y_axis direction the same (don't let cross product flip it)
-            # y_axis_in_plane stays as calculated above
-        
-        y_axis_world = y_axis_in_plane.copy()
-        y_axis_world.scaleBy(math.cos(theta))
-        z_part = sketch_normal_world.copy()
-        z_part.scaleBy(math.sin(theta))
-        y_axis_world.add(z_part)
-        
-        z_axis_world = sketch_normal_world.copy()
-        z_axis_world.scaleBy(math.cos(theta))
-        y_neg_part = y_axis_in_plane.copy()
-        y_neg_part.scaleBy(-math.sin(theta))
-        z_axis_world.add(y_neg_part)
-        
-        airfoil_to_world = adsk.core.Matrix3D.create()
-        airfoil_to_world.setWithCoordinateSystem(start_pt_world, x_axis_world, y_axis_world, z_axis_world)
+        airfoil_to_world, chord_length = chord_frame(
+            selected_line, state.rotation_state, state.flip_orientation)
+        y_axis_world = adsk.core.Vector3D.create(
+            airfoil_to_world.getCell(0, 1), airfoil_to_world.getCell(1, 1),
+            airfoil_to_world.getCell(2, 1))
 
         # 2. Fitting Logic
         do_new_fit = (state.needs_refit or not state.fit_cache) if is_preview else True
@@ -171,7 +127,7 @@ def run_fitter(inputs, is_preview):
 
             # Set TE thickness input to match the newly loaded airfoil on initial load.
             # This must also write zero so a previous file's TE value cannot leak.
-            if is_initial_fit:
+            if is_initial_fit and initialize_te:
                 te_input = inputs.itemById('te_thickness')
                 if te_input:
                     te_input.value = processor.get_te_thickness() * chord_length
@@ -375,13 +331,9 @@ def run_fitter(inputs, is_preview):
                 transformed.append([p_local.x, p_local.y, p_local.z])
             return np.array(transformed)
 
-        is_editable = inputs.itemById('editable_splines').value
         
         if is_preview:
             target_sketch = selected_line.parentSketch
-            target_sketch.is3D = True
-            create_fusion_spline(target_sketch, transform_pts(upper_cp, target_sketch), state.fit_cache['upper_knots'], state.fit_cache['degree_u'])
-            create_fusion_spline(target_sketch, transform_pts(lower_cp, target_sketch), state.fit_cache['lower_knots'], state.fit_cache['degree_l'])
             
             # Render all preview graphics
             render_preview(
@@ -392,40 +344,37 @@ def run_fitter(inputs, is_preview):
         else:
             file_path = inputs.itemById('file_path').value
             sketch_name = os.path.splitext(os.path.basename(file_path))[0] if file_path else "Fitted Airfoil"
+            if design.designType != adsk.fusion.DesignTypes.ParametricDesignType:
+                raise RuntimeError('AirfoilFitter custom features require design history.')
             source_sketch = selected_line.parentSketch
+            first_index = design.timeline.markerPosition
+            # Keep the proven planar placement. Any generated support is owned
+            # by the custom feature along with its output sketch.
+            normal_world = adsk.core.Vector3D.create(
+                airfoil_to_world.getCell(0, 2), airfoil_to_world.getCell(1, 2),
+                airfoil_to_world.getCell(2, 2))
             target_plane = resolve_airfoil_plane(
-                selected_line, state.rotation_state, start_pt_world, z_axis_world,
-                design.rootComponent, sketch_name,
-            )
+                selected_line, state.rotation_state, selected_line.startSketchPoint.worldGeometry,
+                normal_world, design.rootComponent, sketch_name)
+            target_sketch = add_airfoil_sketch(source_sketch, target_plane, sketch_name)
+            target_sketch.is3D = True
+            u_final = transform_pts(upper_cp, target_sketch)
+            l_final = transform_pts(lower_cp, target_sketch)
+            upper = create_fusion_spline(target_sketch, u_final,
+                state.fit_cache['upper_knots'], state.fit_cache['degree_u'])
+            lower = create_fusion_spline(target_sketch, l_final,
+                state.fit_cache['lower_knots'], state.fit_cache['degree_l'])
+            custom_feature.tag(upper, 'upper')
+            custom_feature.tag(lower, 'lower')
+            u_end = adsk.core.Point3D.create(*u_final[-1])
+            l_end = adsk.core.Point3D.create(*l_final[-1])
+            if u_end.distanceTo(l_end) > 1e-7:
+                custom_feature.tag(target_sketch.sketchCurves.sketchLines.addByTwoPoints(
+                    u_end, l_end), 'trailing')
+            first_feature = design.timeline.item(first_index).entity
+            custom_feature.wrap(target_sketch, selected_line, first_feature,
+                                inputs, state.fit_cache, state.rotation_state, state.flip_orientation)
 
-            if is_editable:
-                # Create a temporary sketch on the target plane to use modelToSketchSpace for accurate transformation
-                temp_sketch, target_plane = add_airfoil_sketch(
-                    source_sketch, target_plane, sketch_name, return_support=True)
-                u_dxf = transform_pts(upper_cp, temp_sketch); l_dxf = transform_pts(lower_cp, temp_sketch)
-                # If airfoil is flipped, swap the chord start and end points
-                if state.flip_orientation:
-                    chord_start_aligned = chord_end_world_original
-                    chord_end_aligned = chord_start_world_original
-                else:
-                    chord_start_aligned = chord_start_world_original
-                    chord_end_aligned = chord_end_world_original
-                target_sketch = import_splines_via_dxf(
-                    temp_sketch, target_plane, u_dxf, state.fit_cache['upper_knots'], state.fit_cache['degree_u'], 
-                    l_dxf, state.fit_cache['lower_knots'], state.fit_cache['degree_l'], is_sharp,
-                    chord_start_aligned, chord_end_aligned, sketch_name=sketch_name,
-                    source_sketch=source_sketch
-                )
-                if temp_sketch != target_sketch: temp_sketch.deleteMe()
-            else:
-                target_sketch = add_airfoil_sketch(source_sketch, target_plane, sketch_name)
-                u_final = transform_pts(upper_cp, target_sketch); l_final = transform_pts(lower_cp, target_sketch)
-                create_fusion_spline(target_sketch, u_final, state.fit_cache['upper_knots'], state.fit_cache['degree_u'])
-                create_fusion_spline(target_sketch, l_final, state.fit_cache['lower_knots'], state.fit_cache['degree_l'])
-                if not is_sharp:
-                    target_sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(u_final[-1,0], u_final[-1,1], 0), adsk.core.Point3D.create(l_final[-1,0], l_final[-1,1], 0))
-        
-                    
         return True
     except AirfoilPlaneError as exc:
         app.log(f"AirfoilFitter plane creation failed: {traceback.format_exc()}")

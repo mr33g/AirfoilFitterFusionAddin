@@ -12,7 +12,7 @@ bspline_processor = None  # Store the processor instance for refinement operatio
 
 def reset_state():
     """Reset all state variables to their default values."""
-    global needs_refit, fit_cache, rotation_state, flip_orientation, preview_graphics, graphics_world_to_local, current_cp_count, bspline_processor
+    global needs_refit, fit_cache, rotation_state, flip_orientation, preview_graphics, graphics_world_to_local, current_cp_count_upper, current_cp_count_lower, bspline_processor
     needs_refit = True
     fit_cache = {}
     rotation_state = 0

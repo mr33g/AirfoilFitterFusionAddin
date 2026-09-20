@@ -97,16 +97,31 @@ def draw_control_polygon(graphics_group, upper_cp, lower_cp, chord_length,
         except Exception as e:
             app.log(f"Error drawing lower control polygon: {e}")
     
-    # Draw control polygon points (handles) using sketch geometry
+    # Graphics only: touching the chord sketch invalidates dependent features.
     try:
-        for pt in u_cp_trans:
-            target_sketch.sketchPoints.add(adsk.core.Point3D.create(pt[0], pt[1], pt[2]))
-        for pt in l_cp_trans:
-            target_sketch.sketchPoints.add(adsk.core.Point3D.create(pt[0], pt[1], pt[2]))
+        point_image = os.path.join(_addin_dir, 'resources', 'AirfoilFitterCommand', 'raw', '8x8.png')
+        points = graphics_group.addPointSet(
+            adsk.fusion.CustomGraphicsCoordinates.create(upper_coords + lower_coords), [],
+            adsk.fusion.CustomGraphicsPointTypes.UserDefinedCustomGraphicsPointType, point_image)
+        points.depthPriority = DEPTH_CONTROL
     except Exception as e:
         app.log(f"Error drawing control polygon points: {e}")
     
     return upper_coords, lower_coords
+
+
+def draw_airfoil_curves(graphics_group, upper_cp, lower_cp, fit_cache,
+                       chord_length, airfoil_to_world):
+    """Draw exact transient NURBS without modifying any sketch or timeline."""
+    for cp, knot_key, degree_key in ((upper_cp, 'upper_knots', 'degree_u'),
+                                      (lower_cp, 'lower_knots', 'degree_l')):
+        coords = _get_world_pts(cp, chord_length, airfoil_to_world)
+        points = [adsk.core.Point3D.create(*coords[i:i + 3]) for i in range(0, len(coords), 3)]
+        curve = adsk.core.NurbsCurve3D.createNonRational(
+            points, fit_cache[degree_key], list(fit_cache[knot_key]), False)
+        graphic = graphics_group.addCurve(curve)
+        graphic.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(
+            adsk.core.Color.create(0, 160, 255, 255))
 
 
 def draw_trailing_edge_line(graphics_group, upper_coords, lower_coords, is_sharp):
@@ -423,6 +438,9 @@ def render_preview(target_sketch, upper_cp, lower_cp, fit_cache, chord_length,
     if target_sketch.assemblyContext:
         state.graphics_world_to_local = target_sketch.assemblyContext.transform2.copy()
         state.graphics_world_to_local.invert()
+
+    draw_airfoil_curves(state.preview_graphics, upper_cp, lower_cp, fit_cache,
+                       chord_length, airfoil_to_world)
     
     # Draw control polygon
     upper_coords, lower_coords = draw_control_polygon(

@@ -5,7 +5,7 @@ from logic import state
 from core import config
 from utils.i18n import t
 
-def create_ui_inputs(inputs):
+def create_ui_inputs(inputs, smoothness_max=0.1):
     """Defines all the UI controls for the Fusion Fitter command."""
     try:
         # 1. Line Selection (Chord Line)
@@ -72,7 +72,7 @@ def create_ui_inputs(inputs):
         cp_count_lower.isVisible = False
 
         # Smoothness penalty
-        smoothness = groupFitterSettingsChildInputs.addFloatSliderCommandInput('smoothness_input', t("smoothness_penalty"), "", 0, 0.1, False)
+        smoothness = groupFitterSettingsChildInputs.addFloatSliderCommandInput('smoothness_input', t("smoothness_penalty"), "", 0, smoothness_max, False)
         smoothness.valueOne = config.DEFAULT_SMOOTHNESS_PENALTY
         smoothness.isVisible = False
 
@@ -100,6 +100,7 @@ def create_ui_inputs(inputs):
         # Editable Results
         editable = inputs.addBoolValueInput('editable_splines', t("keep_adjustable"), True, '', False)
         editable.isVisible = False
+        editable.isEnabled = False
 
         raw = inputs.addBoolValueInput('import_raw', t("show_input_data"), True, '', False)
         raw.isVisible = False

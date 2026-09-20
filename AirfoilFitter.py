@@ -168,6 +168,8 @@ def run(context):
 
         # Import these here, after dependencies are checked and potentially installed
         from ui.handlers import AirfoilFitterCommandCreatedHandler
+        from logic import custom_feature
+        custom_feature.register(addin_dir)
 
         # 1. Create Command Definition
         cmd_def = ui.commandDefinitions.itemById('AirfoilFitterCommand')
@@ -214,6 +216,9 @@ def stop(context):
         app = adsk.core.Application.get()
         ui = app.userInterface
         
+        from logic import custom_feature
+        custom_feature.stop()
+
         # Cleanup from all possible panels
         for ws_id, tab_id, panel_ids in [
             ('FusionSolidEnvironment', 'SolidTab', ['InsertPanel', 'SolidInsertPanel']),
