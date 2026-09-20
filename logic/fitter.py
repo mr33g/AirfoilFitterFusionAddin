@@ -379,9 +379,6 @@ def run_fitter(inputs, is_preview):
         
         if is_preview:
             target_sketch = selected_line.parentSketch
-            target_sketch.is3D = True
-            create_fusion_spline(target_sketch, transform_pts(upper_cp, target_sketch), state.fit_cache['upper_knots'], state.fit_cache['degree_u'])
-            create_fusion_spline(target_sketch, transform_pts(lower_cp, target_sketch), state.fit_cache['lower_knots'], state.fit_cache['degree_l'])
             
             # Render all preview graphics
             render_preview(
