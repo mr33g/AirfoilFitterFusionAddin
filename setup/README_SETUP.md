@@ -26,7 +26,7 @@ Two installer variants can be built:
 
 ### Option 1: Bundled Installer (with libraries)
 
-The bundled installer includes all Python dependencies (numpy, scipy, ezdxf) in the package.
+The bundled installer includes all Python dependencies (numpy, scipy) in the package.
 
 **Quick build:**
 ```bash

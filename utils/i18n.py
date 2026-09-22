@@ -7,7 +7,7 @@ _LANG_CACHE = None
 STRINGS = {
     "en": {
         "deps_missing_msg": (
-            "AirfoilFitter requires external libraries (numpy, scipy, ezdxf).\n\n"
+            "AirfoilFitter requires external libraries (numpy, scipy).\n\n"
             "They were not found in the 'lib' folder.\n"
             "Would you like to attempt a local installation into the add-in folder?"
         ),
@@ -45,7 +45,6 @@ STRINGS = {
         "turn_90": "Turn 90\u00b0",
         "flip": "Flip",
         "te_thickness": "TE Thickness",
-        "keep_adjustable": "Keep adjustable",
         "curvature_comb": "Curvature comb",
         "comb_scale": "Comb Scale",
         "comb_density": "Comb Density",
@@ -67,7 +66,7 @@ STRINGS = {
     },
     "de": {
         "deps_missing_msg": (
-            "AirfoilFitter benoetigt externe Bibliotheken (numpy, scipy, ezdxf).\n\n"
+            "AirfoilFitter benoetigt externe Bibliotheken (numpy, scipy).\n\n"
             "Diese wurden im Ordner 'lib' nicht gefunden.\n"
             "Moechten Sie eine lokale Installation im Add-in-Ordner versuchen?"
         ),
@@ -105,7 +104,6 @@ STRINGS = {
         "turn_90": "Um 90\u00b0 drehen",
         "flip": "Spiegeln",
         "te_thickness": "Dicke Endleiste",
-        "keep_adjustable": "Bearbeitbar",
         "curvature_comb": "Kurvenkamm",
         "comb_scale": "Kamm-Skalierung",
         "comb_density": "Kamm-Dichte",
@@ -127,7 +125,7 @@ STRINGS = {
     },
     "it": {
         "deps_missing_msg": (
-            "AirfoilFitter richiede librerie esterne (numpy, scipy, ezdxf).\n\n"
+            "AirfoilFitter richiede librerie esterne (numpy, scipy).\n\n"
             "Non sono presenti nella cartella 'lib'.\n"
             "Vuoi provare a installarle automaticamente nella cartella dell'add-in?"
         ),
@@ -165,7 +163,6 @@ STRINGS = {
         "turn_90": "Ruota di 90\u00b0",
         "flip": "Specchia",
         "te_thickness": "Spessore del bordo d'uscita",
-        "keep_adjustable": "Mantieni regolabile",
         "curvature_comb": "Pettine di curvatura",
         "comb_scale": "Scala del pettine",
         "comb_density": "Densità del pettine",

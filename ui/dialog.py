@@ -97,11 +97,6 @@ def create_ui_inputs(inputs, smoothness_max=0.1):
         comb_density.valueOne = 200
         comb_density.isVisible = False
 
-        # Editable Results
-        editable = inputs.addBoolValueInput('editable_splines', t("keep_adjustable"), True, '', False)
-        editable.isVisible = False
-        editable.isEnabled = False
-
         raw = inputs.addBoolValueInput('import_raw', t("show_input_data"), True, '', False)
         raw.isVisible = False
 

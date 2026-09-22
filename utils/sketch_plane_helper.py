@@ -46,7 +46,7 @@ def _create_support_plane(sketch, name):
 def with_sketch_support(source_sketch, support, name, operation, can_retry=lambda: True):
     """Return (result, effective support); retry only rejected direct-sketch input.
 
-    Import callers must veto a retry if Fusion has already created output.
+    Callers can veto a retry if an operation has already created output.
     Never delete a helper after downstream features have started using it.
     """
     try:

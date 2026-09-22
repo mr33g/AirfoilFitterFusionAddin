@@ -318,16 +318,6 @@ class AirfoilFitterCommandDestroyedHandler(adsk.core.CommandEventHandler):
     def notify(self, args):
         """Clean up when command is destroyed (finished or cancelled)."""
         try:
-            # Clean up temporary DXF file if it exists
-            import tempfile
-            temp_dir = tempfile.gettempdir()
-            dxf_path = os.path.join(temp_dir, "fusion_fitter_temp.dxf")
-            if os.path.exists(dxf_path):
-                try:
-                    os.remove(dxf_path)
-                except:
-                    pass
-
             # Reset all state to default values (includes preview graphics cleanup)
             state.reset_state()
         except Exception as e:

@@ -101,7 +101,6 @@ def ensure_dependencies():
     try:
         import numpy
         import scipy
-        import ezdxf
         return True
     except ImportError:
         pass
@@ -129,7 +128,7 @@ def ensure_dependencies():
 
         bootstrap_pip_cmd = f'"{python_exe}" -m ensurepip --upgrade'
         # Install directly into the add-in's lib folder
-        pip_cmd = f'"{python_exe}" -m pip install --upgrade --force-reinstall --target "{lib_dir}" numpy scipy ezdxf'
+        pip_cmd = f'"{python_exe}" -m pip install --upgrade --force-reinstall --target "{lib_dir}" numpy scipy'
         needs_pip_bootstrap = not _python_has_module(python_exe, 'pip')
 
         install_cmd = pip_cmd
@@ -142,7 +141,7 @@ def ensure_dependencies():
         else:
             if needs_pip_bootstrap:
                 subprocess.check_call([python_exe, '-m', 'ensurepip', '--upgrade'])
-            subprocess.check_call([python_exe, '-m', 'pip', 'install', '--upgrade', '--force-reinstall', '--target', lib_dir, 'numpy', 'scipy', 'ezdxf'])
+            subprocess.check_call([python_exe, '-m', 'pip', 'install', '--upgrade', '--force-reinstall', '--target', lib_dir, 'numpy', 'scipy'])
             ui.messageBox(t("deps_install_complete"))
             
         return False

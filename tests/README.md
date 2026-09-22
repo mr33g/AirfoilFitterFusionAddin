@@ -1,73 +1,88 @@
-# Reference-plane regression checks
+# Parametric AirfoilFitter regression checks
 
-## Offline policy tests
+## Offline tests
 
-Run `python -m unittest discover -s tests -v` from the repository root.
-These tests use API doubles. They check fallback selection, dependency retention,
-origin-plane offset checks, creation context and separate-sketch policy; they
-cannot prove that Fusion accepts a support or computes the correct geometry.
+From the repository root, run:
 
-The DXF alignment test uses numerical API doubles to exercise 48 combinations
-of root/translated/rotated occurrences, sketch orientation, Flip and sharp/blunt
-trailing edges. It checks world-space endpoint alignment, native sketch movement,
-connector movement and unchanged degree arguments above 5. It does not run
-Fusion's DXF importer or prove the resulting splines remain editable.
-Failure tests cover rejected/ineffective moves, incorrect length or plane,
-mirrored or damaged geometry, disconnected trailing-edge connectors, and
-missing/ambiguous import results. Placement now verifies every control point
-against the intended geometry (allowing either surface enumeration order).
-The temporary sketch and single rigid movement remain; no automatic 180-degree
-retry or rescaling is performed. Validation failures propagate to the existing
-command error handler and Text Commands log.
+```text
+python -m unittest discover -s tests -v
+```
 
-## Manual checks in Fusion
+Numerical tests and API doubles cover fitting, embedded recipes, caching,
+native/proxy coordinates, support fallbacks, curve replacement and rollback,
+edit preview lifecycle, and highlighting. They do not run Fusion's geometry
+kernel or prove that downstream operations update correctly.
 
-Load the changed checkout, not an older installed copy. Restart Fusion after
-updating the add-in so its imported Python modules are refreshed. Use a copy of
-the test document and keep the original for comparison.
+## Fusion checks
 
-Check these source sketches:
+Use this checkout rather than an installed build. Restart the add-in after
+changes and use copies of the test documents.
 
-1. The original XY rectangle/chord (baseline).
-2. A sketch on a simple extrusion face, in a document without component operations.
-3. A face-supported sketch in the existing test document, including the body
-   converted into a component and moved later, and the second extrusion.
-4. A sketch made inside an internal component created first, then moved/rotated.
-   Fixed output is a regression control. Adjustable output now uses the selected
-   occurrence for endpoint conversion; this correction needs validation in Fusion.
+### Creation and placement
 
-For each source, start with Keep Adjustable off, and test 0, 90, 180 and 270
-degrees. Repeat with Keep Adjustable on. Include an offset or tilted sketch so
-the 90-degree result cannot reuse a root origin plane. Try Flip as well.
+Test an XY chord sketch, a sketch on an extrusion face, a sketch on a body later
+converted to a component, and a sketch inside a moved/rotated internal component.
+Include an offset or tilted sketch. Test all four initial rotations, Flip,
+and sharp/blunt trailing edges.
 
-Expected results:
+- Preview and output match in position, orientation, scale, and closure.
+- Each insertion creates one AF timeline item enclosing its new output sketch
+  and generated supports. Source sketches receive no preview or final curves.
+- Face boundaries are not projected into the output sketch.
+- Missing historical referencePlane access alone does not reject a healthy sketch.
+- Source-sketch supports and coincident origin planes are reused where possible.
+- Multiple airfoils can use the same chord without freezing the preview.
+- Cancel leaves no output geometry, support plane, or preview graphics.
 
-- Selecting a chord is not rejected just because `referencePlane` fails.
-- Preview and final fixed geometry agree in position, orientation and length.
-- Adjustable output also follows the chord in moved/rotated components. Check
-  both endpoints, airfoil side/orientation and blunt trailing-edge closure. Use
-  degree 6 or higher and verify that control points remain editable after import.
-- Every successful insertion leaves one new output sketch in the chord's
-  component; final curves are not appended to the source sketch.
-- A face boundary is not projected into the new fixed-output sketch.
-- 0 and 180 degrees reuse the source support when available. They do not create
-  an angled plane. If reference lookup fails, the source sketch is tried directly.
-  No support helper should appear when Fusion accepts it. A hidden zero-offset
-  helper is retained only if the consuming API rejects direct sketch support.
-- 90 and 270 degrees reuse a root origin plane only when geometrically coincident;
-  otherwise an angled plane is expected. Its fallback support, if any, remains.
-- After Compute All, and after saving/reopening the test copy, generated planes
-  and sketches have no new reference warnings. Inspect existing warnings before
-  testing so they can be distinguished from new ones.
-- Cancel the preview once: there should be no final output sketch or new support
-  plane from that cancelled command.
+### Parametric edits
 
-If a case fails, capture the source sketch, rotation, Flip and Keep Adjustable
-settings, the failure stage, and the Text Commands error log (Ctrl+Alt+C).
-Successful support selection and recovered reference lookups are silent.
-The add-in does not move the timeline or redefine the source sketch to repair it.
+Create a loft or sweep between airfoils, then add surface offsets and splits.
 
-For the direct-sketch experiment, check both fixed and adjustable output at all
-four rotations. Inspect the timeline for any fallback support plane.
-Verify Compute All and save/reopen as well as initial placement;
-a reference lookup exception alone does not imply an unhealthy source sketch.
+- Change TE thickness, source file, smoothing, continuity, and point counts.
+- Check the initial edit preview and visibility of other airfoils.
+- Open/accept without changes, double-Flip/accept, and Cancel: downstream
+  geometry should not change due to those no-op edits.
+- Chord selection and Rotate 90 degrees remain disabled during Edit.
+- Verify Undo/Redo, Compute All, and save/reopen with the add-in running.
+- Move/remove the original .dat file; embedded data should still permit edits.
+- Change upstream chord length and twist and inspect both the AF sketch
+  and downstream surfaces. Capture stale geometry before using Compute All.
+- Selecting an AF timeline item highlights its curves; Edit Feature remains
+  available. Its built-in context-menu icon may remain Fusion's generic icon.
+
+Manual control-point editing (Keep Adjustable) is not supported in this branch.
+The removed DXF workflow no longer has tests or a runtime dependency.
+
+## Wersy wing: missed downstream update
+
+Source: [forum post 175](https://www.rc-network.de/threads/airfoil-fitter-airfoil-fitter-add-in-f%C3%BCr-fusion.12099445/post-13336739),
+attachment `Flügel mit AFitter.f3d.txt` (rename to `.f3d` when opening).
+The uploaded file is already in the failing state; no parameter change is
+needed to reproduce the reported symptom. Compute All repairs it according
+to Micha's test. Do not save over the original after computing.
+
+Before proposing a fix, compare the stored airfoil curves with the expected
+curves from the current chord and recipe, and capture downstream feature health
+and body geometry before and after Compute All. Record whether custom-feature
+compute callbacks ran. This separates an outdated AF result from downstream
+update propagation. The cause is not yet established; no unconditional
+computeAll call has been added to normal add-in operation.
+
+### Compute refresh experiment (2026-09-21)
+
+The diagnostic run showed unchanged chord frames and sketch transforms, less
+than 0.5 nanometer of spline control-point differences, but substantial changes
+to the final wing body after Compute All. Changing twist again reproduced the
+stale downstream result. This is not just an old saved-file state.
+
+An experiment explicitly called replaceGeometry on existing output splines on
+all compute callbacks, including unchanged sketch-local curves. Micha tested
+this in Fusion: downstream geometry still needed Compute All. The experiment
+and its dedicated tests were removed; it added work without fixing the issue.
+This rules out skipping equal curves as a sufficient explanation, but does not
+establish whether the remaining cause is in AF or Fusion's dependency handling.
+
+Compute All remains the manual workaround. No automatic full-design recompute
+has been added. Any further fix needs a live regression check: start with a
+computed wing, change twist twice without Compute All, inspect downstream
+surfaces/skin, and verify Undo/Redo and a no-op AF edit.

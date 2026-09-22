@@ -173,7 +173,7 @@ class PlaneTests(unittest.TestCase):
         self.assertIs(support, self.sketch)
         self.assertEqual(self.planes, [])
 
-    def test_rejected_new_sketch_returns_effective_support_for_dxf(self):
+    def test_rejected_new_sketch_returns_effective_support(self):
         output = SimpleNamespace(name='', assemblyContext=None)
         for rejection in (None, RuntimeError('unsupported sketch')):
             with self.subTest(rejection=rejection):

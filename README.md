@@ -2,6 +2,21 @@
 
 A Fusion add-in that imports airfoil coordinate data from `.dat` files and fits optimized Bézier curves to it. The generated splines are aligned to the selected sketch line. The result maintains smooth curvature and geometric continuity at the leading edge and can be used immediately for lofts, sweeps, and other CAD operations.
 
+## Parametric Version
+
+Each insertion creates one AirfoilFitter timeline feature containing its output
+sketch and any required construction planes. Right-click it and choose **Edit
+Feature** to change the settings.
+
+The feature embeds the source `.dat` contents in the design. Moving or deleting
+the original file does not remove that data; editing the file externally does
+not automatically update the feature. Select the changed file in Edit Feature
+to use it. Keep the add-in installed and running to edit or recompute these
+custom features. Design history must be enabled.
+
+Previously inserted airfoils remain ordinary sketches. Installing this version
+does not convert them into editable AirfoilFitter timeline features.
+
 ## Installation
 
 ## The Installer is now distributed via the Autodesk App Store.
@@ -43,10 +58,10 @@ https://apps.autodesk.com/FUSION/en/Detail/Index?id=7312110669169312529&appLang=
    - **Smoothness**: Defaults to 0.001, higher values produce smoother control polygons at the cost of accuracy. Not all airfoils require smoothing, in those cases smoothing can be set to zero.
    - **LE Continuity**: Default is G2, if the curvature near the leading edge is not smooth ehough, G3 can be enforced additionally. G1 is available as a fallback.
 
-7. **Keep Adjustable** if you need to modify control points after insertion
-8. **Curvature Comb** analyze the airfoils curvature in the preview
-9. **Show Input Data** Overlays the input data points over the generated Spline
-8. **Click OK** to insert the final geometry into a new sketch in the chord line's component (for both fixed and adjustable splines).
+7. **Curvature Comb**: analyze the airfoil's curvature in the preview.
+8. **Show Input Data**: overlay the input coordinates for comparison.
+9. **Click OK** to create one AirfoilFitter timeline feature, with a new output sketch in the chord line's component.
+10. **Edit Feature** from its timeline context menu to revise the fit later. Existing downstream references are retained where Fusion can resolve them.
 
 ## Features
 
@@ -56,7 +71,7 @@ https://apps.autodesk.com/FUSION/en/Detail/Index?id=7312110669169312529&appLang=
 - **Automatic repaneling**: The input data is repaneled to even out point spacing.
 
 ### Bézier Fitting
-- **Single-span B-Spline curves**: Result is a control point spline compatible with Fusion. Based on Dev Rajnarayan et al. 2019 (https://arc.aiaa.org/doi/10.2514/6.2018-3949).
+- **Single-span B-Spline curves**: The fitted curves are stored as fixed NURBS splines in Fusion. Based on Dev Rajnarayan et al. 2019 (https://arc.aiaa.org/doi/10.2514/6.2018-3949).
 - **Adjustable control point count**: 4 to 19 control points per surface (upper/lower fitted independently)
 - **G1 continuity**: (fallback) Tangent continuity is always enforced at the leading edge between upper and lower surfaces
 - **G2 continuity** (default): Curvature continuity at the leading edge via constrained optimization
@@ -70,9 +85,9 @@ https://apps.autodesk.com/FUSION/en/Detail/Index?id=7312110669169312529&appLang=
 - **Flip orientation**: Reverse the nose-to-tail direction along the chord line
 - **Trailing edge thickness**: Add symmetric trailing edge thickness with minimal distortion of the airfoil.
 
-### Output Options
-- **Editable splines** (experimental): Creates geometry via DXF import to create control-point splines that can be edited in Fusion
-- **Fixed splines**: Creates read-only splines directly through the Fusion-API
+### Output
+- **Parametric fit**: revise the source profile and fitting settings through Edit Feature.
+- **Fixed splines**: exact curves created through the Fusion API and updated in place. Their control points are not manually editable.
 - **Show input data**: Optionally display the original airfoil coordinate points for comparison
 
 ### Error Reporting
@@ -83,7 +98,6 @@ https://apps.autodesk.com/FUSION/en/Detail/Index?id=7312110669169312529&appLang=
 The add-in requires the following Python packages:
 - `numpy`
 - `scipy`  
-- `ezdxf`
 
 **Automatic or manual installation (Windows only)**: If the dependencies are missing from the `lib/` folder, the add-in will prompt to install them automatically on first run. You can also install them manually (see Troubleshooting section).
 
@@ -121,17 +135,17 @@ NACA 2412
 
 Face-supported sketches are accepted even when Fusion cannot retrieve their original reference plane at the current timeline position. The add-in first tries to reuse the source support; if it is unavailable, it first tries using the source sketch directly. Only if the consuming API rejects that reference does it create a zero-offset construction plane based on the sketch. Any such helper remains in the model because the output depends on it. The add-in does not redefine the source sketch or rearrange the timeline.
 
-Final airfoils always go into a new sketch, including fixed splines at 0 degrees. A 180-degree rotation reuses the same support as 0 degrees. At 90 or 270 degrees, an origin plane is reused when it coincides with the required plane; otherwise an angled plane is created.
+Final airfoils always go into a new sketch, including at 0 degrees. A 180-degree rotation reuses the same support as 0 degrees. At 90 or 270 degrees, an origin plane is reused when it coincides with the required plane; otherwise an angled plane is created.
 
 If Fusion rejects support creation, the error dialog reports that operation and the Text Commands log (Ctrl+Alt+C) contains the underlying exception. This is a failure to create the output support, not an automatic diagnosis that the source sketch is broken.
 
 ### "Dependencies Missing" on startup
 
-The add-in will offer to install numpy, scipy, and ezdxf automatically. If this fails:
+The add-in will offer to install numpy and scipy automatically. If this fails:
 
 **Windows**
 1. Locate Fusion's Python: typically in the Fusion installation directory and open a terminal there
-2. Run: `python -m pip install --force-reinstall --target "<addin-path>/lib" numpy scipy ezdxf` in that terminal
+2. Run: `python -m pip install --force-reinstall --target "<addin-path>/lib" numpy scipy` in that terminal
 3. Restart Fusion
 
 ## License
@@ -143,6 +157,13 @@ MIT License - see [LICENSE](LICENSE) for details.
 Michael Reeg
 
 ## Changelog
+
+### Unreleased — parametric prototype
+- AirfoilFitter timeline features with embedded source data and editable fitting settings.
+- Preserve spline entities during normal edits to retain downstream references.
+- Support face sketches and moved component occurrences; graphics-only previews.
+- Remove the adjustable DXF workflow and the ezdxf dependency.
+- Known issue: the reported wing design may require Compute All after upstream changes.
 
 ### v1.2.0
 - Improved Error Objective
