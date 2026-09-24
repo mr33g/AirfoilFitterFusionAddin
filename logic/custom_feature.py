@@ -18,6 +18,7 @@ _handlers = []
 _sessions = []
 _busy = set()
 _selection_highlight = None
+_deferred = None
 
 
 def _attach(event, handler, keep):
@@ -26,7 +27,7 @@ def _attach(event, handler, keep):
 
 
 def register(addin_dir):
-    global _definition, _selection_highlight
+    global _definition, _selection_highlight, _deferred
     ui = adsk.core.Application.get().userInterface
     _definition = adsk.fusion.CustomFeatureDefinition.create(
         DEFINITION_ID, 'AirfoilFitter', os.path.join(addin_dir, 'resources', 'AirfoilFitterFeature'))
@@ -41,9 +42,16 @@ def register(addin_dir):
     _selection_highlight = SelectionHighlight(ui)
     _attach(ui.activeSelectionChanged, _selection_highlight, _handlers)
     _attach(ui.commandStarting, ClearSelectionHighlight(_selection_highlight), _handlers)
+    from logic.deferred_update import DeferredUpdates
+    _deferred = DeferredUpdates(update, _busy, _native)
+    _deferred.start()
 
 
 def stop():
+    global _deferred
+    if _deferred:
+        _deferred.stop()
+        _deferred = None
     if _selection_highlight:
         _selection_highlight.clear()
     feature_recipe._fit_cached.cache_clear()
@@ -217,8 +225,8 @@ def apply_edit(feature, original_recipe, original_values, recipe, values, te_exp
         feature.name = 'AirfoilFitter - ' + os.path.splitext(recipe['filename'])[0]
 
 
-def update(feature, recipe=None, values=None):
-    """Refit first, then replace the two existing spline geometries in place."""
+def update(feature, recipe=None, values=None, *, apply=True):
+    """Refit and compare; optionally replace existing sketch geometry in place."""
     recipe = read_recipe(feature) if recipe is None else recipe
     values = parameter_values(feature) if values is None else values
     dependency = feature.dependencies.itemById('chord')
@@ -252,6 +260,15 @@ def update(feature, recipe=None, values=None):
     connectors = [line for line in sketch.sketchCurves.sketchLines if _role(line) == 'trailing']
     if len(connectors) > 1:
         raise RuntimeError('The airfoil has more than one trailing-edge connector.')
+    open_te = endpoints[0].distanceTo(endpoints[1]) > 1e-7
+    connector_changed = bool(connectors) != open_te
+    if open_te and connectors:
+        connector_changed = any(point.geometry.distanceTo(target) > 1e-7
+                                for point, target in zip(
+                                    (connectors[0].startSketchPoint, connectors[0].endSketchPoint), endpoints))
+    changed = bool(replacements) or connector_changed
+    if not apply or not changed:
+        return changed
     saved_points = [(point, point.geometry.copy()) for connector in connectors
                     for point in (connector.startSketchPoint, connector.endSketchPoint)]
     added_connector = None
@@ -292,6 +309,7 @@ def update(feature, recipe=None, values=None):
         except Exception:
             adsk.core.Application.get().log('AirfoilFitter rollback failed: ' + traceback.format_exc())
         raise
+    return changed
 
 
 class Compute(adsk.fusion.CustomFeatureEventHandler):
@@ -303,7 +321,11 @@ class Compute(adsk.fusion.CustomFeatureEventHandler):
             return
         _busy.add(key)
         try:
-            update(feature)
+            if _deferred:
+                if not _deferred.history_replay and update(feature, apply=False):
+                    _deferred.queue(feature)
+            else:
+                update(feature)
         except Exception:
             adsk.core.Application.get().log('AirfoilFitter recompute failed: ' + traceback.format_exc())
             args.computeStatus.statusMessages.addError('DRPOINT_COMPUTE_FAILED', '')

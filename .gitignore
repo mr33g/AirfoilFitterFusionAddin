@@ -10,5 +10,6 @@ lib/
 doc/
 res/
 out/
+tests/
 .gitignore
 TODO.md
