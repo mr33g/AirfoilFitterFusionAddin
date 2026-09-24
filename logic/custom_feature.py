@@ -74,7 +74,25 @@ def tag(entity, role):
     _native(entity).attributes.add(GROUP, 'role', role)
 
 
-def wrap(sketch, line, first_feature, inputs, cache, rotation, flip):
+def _group_start(sketch, supports):
+    """Accept only an exact, contiguous block of explicitly owned entities."""
+    if not supports:
+        return sketch
+    members = [_native(entity) for entity in supports] + [sketch]
+    timeline = sketch.timelineObject.parentTimeline
+    start = members[0].timelineObject.index
+    if start < 0:
+        raise RuntimeError('Cannot verify the AirfoilFitter support group position.')
+    for offset, member in enumerate(members):
+        item = member.timelineObject
+        if (item.parentTimeline != timeline or item.index != start + offset
+                or _native(timeline.item(start + offset).entity) != member):
+            raise RuntimeError('AirfoilFitter supports and output are not contiguous; '
+                               'creation cancelled to protect unrelated timeline operations.')
+    return members[0]
+
+
+def wrap(sketch, line, inputs, cache, rotation, flip, *, supports=()):
     if _definition is None:
         raise RuntimeError('AirfoilFitter custom feature definition is not registered.')
     path = inputs.itemById('file_path').value
@@ -93,11 +111,18 @@ def wrap(sketch, line, first_feature, inputs, cache, rotation, flip):
             raise RuntimeError('Cannot create airfoil parameter: ' + label)
     if not data.addDependency('chord', line):
         raise RuntimeError('Cannot retain the airfoil chord dependency.')
-    if not data.setStartAndEndFeatures(first_feature, native):
+    # A range includes EVERY intervening operation. Check the actual entities,
+    # immediately before grouping, rather than relying on an old marker index.
+    first = _group_start(native, supports)
+    if not data.setStartAndEndFeatures(first, native):
         raise RuntimeError('Fusion could not group the airfoil output into one timeline feature.')
     feature = collection.add(data)
     if not feature:
         raise RuntimeError('Fusion could not create the AirfoilFitter custom feature.')
+    expected = [_native(entity) for entity in supports] + [native]
+    actual = [_native(entity) for entity in feature.features]
+    if len(actual) != len(expected) or any(entity not in expected for entity in actual):
+        raise RuntimeError('Fusion grouped unexpected features; AirfoilFitter creation cancelled.')
     feature.name = 'AirfoilFitter - ' + os.path.splitext(recipe['filename'])[0]
     _native(feature).attributes.add(GROUP, 'recipe', feature_recipe.encode(recipe))
     return feature

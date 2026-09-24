@@ -9,6 +9,7 @@ from core.bspline_processor import BSplineProcessor
 from utils.fusion_geometry_helper import create_fusion_spline
 from logic.airfoil_frame import chord_frame
 from logic import custom_feature
+from logic.timeline_insertion import TimelineInsertion, TimelineInsertionError
 from utils import bspline_helper
 from utils.sketch_plane_helper import AirfoilPlaneError, resolve_airfoil_plane, add_airfoil_sketch
 from logic.preview_renderer import render_preview
@@ -347,16 +348,21 @@ def run_fitter(inputs, is_preview, initialize_te=True):
             if design.designType != adsk.fusion.DesignTypes.ParametricDesignType:
                 raise RuntimeError('AirfoilFitter custom features require design history.')
             source_sketch = selected_line.parentSketch
-            first_index = design.timeline.markerPosition
-            # Keep the proven planar placement. Any generated support is owned
-            # by the custom feature along with its output sketch.
+            planes = source_sketch.parentComponent.constructionPlanes
+            insertion = TimelineInsertion(design.timeline, planes)
+            # Track newly created supports explicitly; existing support geometry
+            # must never become part of the AF-owned group.
             normal_world = adsk.core.Vector3D.create(
                 airfoil_to_world.getCell(0, 2), airfoil_to_world.getCell(1, 2),
                 airfoil_to_world.getCell(2, 2))
             target_plane = resolve_airfoil_plane(
                 selected_line, state.rotation_state, selected_line.startSketchPoint.worldGeometry,
                 normal_world, design.rootComponent, sketch_name)
+            insertion.place_new_planes(planes)
             target_sketch = add_airfoil_sketch(source_sketch, target_plane, sketch_name)
+            # Sketch creation may create an additional fallback support plane.
+            insertion.place_new_planes(planes)
+            output_position = insertion.place(target_sketch, 'output sketch')
             target_sketch.is3D = True
             u_final = transform_pts(upper_cp, target_sketch)
             l_final = transform_pts(lower_cp, target_sketch)
@@ -371,11 +377,18 @@ def run_fitter(inputs, is_preview, initialize_te=True):
             if u_end.distanceTo(l_end) > 1e-7:
                 custom_feature.tag(target_sketch.sketchCurves.sketchLines.addByTwoPoints(
                     u_end, l_end), 'trailing')
-            first_feature = design.timeline.item(first_index).entity
-            custom_feature.wrap(target_sketch, selected_line, first_feature,
-                                inputs, state.fit_cache, state.rotation_state, state.flip_orientation)
+            group_position = (insertion.created_planes[0].timelineObject.index
+                              if insertion.created_planes else output_position)
+            feature = custom_feature.wrap(target_sketch, selected_line,
+                                inputs, state.fit_cache, state.rotation_state, state.flip_orientation,
+                                supports=insertion.created_planes)
+            insertion.place(feature, 'feature', position=group_position)
 
         return True
+    except TimelineInsertionError as exc:
+        app.log(f'AirfoilFitter insertion failed: {traceback.format_exc()}')
+        app.userInterface.messageBox(str(exc))
+        return False  # Execute handler sets executeFailed to abort the transaction.
     except AirfoilPlaneError as exc:
         app.log(f"AirfoilFitter plane creation failed: {traceback.format_exc()}")
         app.userInterface.messageBox(t("failed_create_airfoil_plane", error=str(exc)))
