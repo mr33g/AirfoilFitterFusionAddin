@@ -12,3 +12,4 @@ res/
 out/
 .gitignore
 TODO.md
+tests/
