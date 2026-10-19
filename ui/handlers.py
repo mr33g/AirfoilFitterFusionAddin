@@ -21,20 +21,26 @@ def _set_selected_file_button_text(inputs, file_path: str) -> None:
         pass
 
 
+_updating_cp_labels = False
+
+
 def update_cp_count_labels(inputs):
-    """Update the labels for CP count controls with current values."""
+    """Refresh labels without treating programmatic changes as button clicks."""
+    global _updating_cp_labels
+    if _updating_cp_labels:
+        return
+    _updating_cp_labels = True
     try:
-        cp_count_upper = inputs.itemById('cp_count_upper')
-        if cp_count_upper:
-            current_count = state.current_cp_count_upper if state.current_cp_count_upper is not None else get_initial_cp_count(inputs)
-            cp_count_upper.text = f'  {current_count}'
-        
-        cp_count_lower = inputs.itemById('cp_count_lower')
-        if cp_count_lower:
-            current_count = state.current_cp_count_lower if state.current_cp_count_lower is not None else get_initial_cp_count(inputs)
-            cp_count_lower.text = f'  {current_count}'
-    except Exception as e:
-        pass
+        for surface in ('upper', 'lower'):
+            button = inputs.itemById('cp_count_' + surface)
+            if button:
+                count = getattr(state, 'current_cp_count_' + surface)
+                text = f'  {count if count is not None else get_initial_cp_count(inputs)}'
+                if button.text != text:
+                    button.text = text
+    finally:
+        _updating_cp_labels = False
+
 
 def get_initial_cp_count(inputs):
     """Return the selected initial control point count."""
@@ -140,6 +146,8 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
                 pass
          
             changed_id = event_args.input.id
+            if _updating_cp_labels or changed_id == 'initial_cp_count':
+                return
 
             if changed_id == 'select_file':
                 ui = adsk.core.Application.get().userInterface
@@ -170,8 +178,6 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
                         state.needs_refit = True
             
             elif changed_id in ['continuity_level', 'smoothness_input', 'cp_count_upper', 'cp_count_lower']:
-                if changed_id in ['continuity_level']:
-                    state.fit_cache = {}
                 
                 # Correct CP count values before triggering refit
                 if changed_id =='cp_count_upper' and state.current_cp_count_upper is not None:
