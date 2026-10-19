@@ -1,0 +1,28 @@
+name: Test Airfoil Fitter add-in
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: AirfoilFitterFusionAddin
+      - uses: actions/checkout@v4
+        with:
+          repository: mr33g/airfoil-splines-core
+          ref: main
+          persist-credentials: false
+          path: airfoil-splines-core
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r AirfoilFitterFusionAddin/requirements.txt
+      - name: Bundle shared core
+        run: python AirfoilFitterFusionAddin/setup/prepare_core.py
+      - name: Run offline add-in tests
+        working-directory: AirfoilFitterFusionAddin
+        env:
+          PYTHONPATH: _vendor
+        run: python -m unittest discover -s tests -v

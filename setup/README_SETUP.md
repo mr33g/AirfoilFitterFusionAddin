@@ -1,6 +1,6 @@
 # MSI Installer Setup (WiX v4+)
 
-This folder contains the files necessary to build a Windows MSI installer for the Airfoil Fitter Fusion Add-in, following Autodesk's recommended `.bundle` structure and the latest **WiX v4+** standards.
+This folder contains the files necessary to build a Windows MSI installer for the Airfoil Fitter Fusion Add-in, following Autodesk's recommended `.bundle` structure and the latest **WiX v4+** standards. The sibling `airfoil-splines-core` repository is required; `prepare_core.py` packages it into `_vendor` before staging.
 
 ## Prerequisites
 
@@ -22,6 +22,12 @@ This folder contains the files necessary to build a Windows MSI installer for th
 
 **IMPORTANT**: If you have a previous version installed, please uninstall it via Windows Settings -> Apps before installing the new one.
 
+Airfoil Fitter and Airfoil Splines cannot be installed at the same time. The
+Windows installer detects an existing Airfoil Splines MSI and asks the user to
+uninstall it before continuing. Uninstalling Airfoil Fitter remains possible if
+Airfoil Splines was installed afterwards. Manually installed copies must be
+removed from Fusion and from their installation folder by the user.
+
 Two installer variants can be built:
 
 ### Option 1: Bundled Installer (with libraries)
@@ -36,10 +42,11 @@ build-bundled.bat
 **Manual build:**
 ```bash
 # 1. Generate WiX fragment (includes lib folder)
+python prepare_core.py
 python generate_wxs_fragment.py --output Files.wxs
 
 # 2. Build the MSI
-wix build AirfoilFitter.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterAddin-bundled.msi
+wix build AirfoilFitterAddin.wxs Files.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterAddin-bundled.msi
 ```
 
 ### Option 2: Standalone Installer (without libraries)
@@ -54,10 +61,11 @@ build-standalone.bat
 **Manual build:**
 ```bash
 # 1. Generate WiX fragment (excludes lib folder)
+python prepare_core.py
 python generate_wxs_fragment.py --exclude-lib --output Files-Standalone.wxs
 
 # 2. Build the MSI
-wix build AirfoilFitter-Standalone.wxs Files-Standalone.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterAddin.msi
+wix build AirfoilFitterAddin.wxs Files-Standalone.wxs -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o AirfoilFitterAddin.msi
 ```
 
 ### Building Both
@@ -80,7 +88,7 @@ The installer is configured to install the add-in to:
 `%AppData%\Autodesk\ApplicationPlugins\AirfoilFitter.bundle\`
 
 *   **PackageContents.xml**: Located at the root of the `.bundle` folder. It tells Fusion how to load the add-in.
-*   **Contents/**: Subfolder containing all the actual add-in files and folders (`core`, `lib`, `ui`, etc.).
+*   **Contents/**: Subfolder containing the add-in files, including the bundled shared core in `_vendor`, third-party dependencies in `lib`, and Fusion adapters in `logic`, `ui`, and `utils`.
 
 This structure ensures compatibility with the Autodesk App Store and provides a "clean" installation that Fusion automatically discovers on startup.
 

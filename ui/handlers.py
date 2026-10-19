@@ -5,7 +5,7 @@ import os
 from ui.dialog import create_ui_inputs
 from logic import state
 from logic.fitter import run_fitter
-from core import config
+import airfoil_fitter_settings as config
 from utils.i18n import t
 
 def _set_selected_file_button_text(inputs, file_path: str) -> None:
@@ -42,9 +42,9 @@ def get_initial_cp_count(inputs):
         initial_cp_count = inputs.itemById('initial_cp_count')
         if initial_cp_count:
             if hasattr(initial_cp_count, 'value'):
-                return max(4, min(19, int(initial_cp_count.value)))
+                return max(config.MIN_CP_COUNT, min(config.MAX_CP_COUNT, int(initial_cp_count.value)))
             if initial_cp_count.selectedItem:
-                return max(4, min(19, int(initial_cp_count.selectedItem.name)))
+                return max(config.MIN_CP_COUNT, min(config.MAX_CP_COUNT, int(initial_cp_count.selectedItem.name)))
     except Exception:
         pass
     return config.DEFAULT_CP_COUNT
@@ -68,11 +68,12 @@ def reset_fitter_settings_to_defaults(inputs, resetAll=False):
             if smoothness:
                 smoothness.valueOne = config.DEFAULT_SMOOTHNESS_PENALTY
             
-            # Reset continuity level to G1 (first item)
+            # Reset continuity level to the application default.
             continuity_dropdown = inputs.itemById('continuity_level')
             if continuity_dropdown:
                 for i in range(continuity_dropdown.listItems.count):
-                    continuity_dropdown.listItems.item(i).isSelected = (i == 1)
+                    continuity_dropdown.listItems.item(i).isSelected = (
+                        i == config.DEFAULT_CONTINUITY - 1)
             
     except Exception as e:
         pass
@@ -174,10 +175,12 @@ class AirfoilFitterCommandInputChangedHandler(adsk.core.InputChangedEventHandler
                 
                 # Correct CP count values before triggering refit
                 if changed_id =='cp_count_upper' and state.current_cp_count_upper is not None:
-                    state.current_cp_count_upper = state.current_cp_count_upper + 1
+                    state.current_cp_count_upper = min(
+                        config.MAX_CP_COUNT, state.current_cp_count_upper + 1)
                     update_cp_count_labels(inputs)
                 elif changed_id =='cp_count_lower' and state.current_cp_count_lower is not None:
-                    state.current_cp_count_lower = state.current_cp_count_lower + 1
+                    state.current_cp_count_lower = min(
+                        config.MAX_CP_COUNT, state.current_cp_count_lower + 1)
                     update_cp_count_labels(inputs)
 
                 state.needs_refit = True

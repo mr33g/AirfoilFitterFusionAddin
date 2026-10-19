@@ -19,8 +19,10 @@ https://apps.autodesk.com/FUSION/en/Detail/Index?id=7312110669169312529&appLang=
 
 ### Manual Installation (Windows)
 
-1. Download or clone this repository
-2. Copy the `AirfoilFitter` folder to your Fusion add-ins directory:
+1. Download a release archive. For a source checkout, clone this repository and
+   `airfoil-splines-core` as sibling folders, then run
+   `python setup/prepare_core.py` to populate `_vendor`.
+2. Copy the complete `AirfoilFitter` folder to your Fusion add-ins directory:
    - **Windows**: `%APPDATA%\Autodesk\Autodesk Fusion\API\AddIns\`
 3. Go to **Utilities → Add-Ins → Scripts and Add-Ins** and enable **AirfoilFitter**
 4. Confirm dependency installation
@@ -80,12 +82,26 @@ https://apps.autodesk.com/FUSION/en/Detail/Index?id=7312110669169312529&appLang=
 
 ### Dependencies
 
-The add-in requires the following Python packages:
+The add-in uses the shared
+[`airfoil-splines-core`](https://github.com/mr33g/airfoil-splines-core)
+package for all data loading and numerical fitting. Release builds bundle that
+package in `_vendor`; numerical source is not duplicated in this repository.
+
+The add-in also requires the following third-party packages:
 - `numpy`
 - `scipy`  
 - `ezdxf`
 
 **Automatic or manual installation (Windows only)**: If the dependencies are missing from the `lib/` folder, the add-in will prompt to install them automatically on first run. You can also install them manually (see Troubleshooting section).
+
+### Development
+
+Clone `AirfoilFitterFusionAddin` and `airfoil-splines-core` as sibling folders.
+For a release-style local copy, run `python setup/prepare_core.py`; this bundles
+the sibling package into the ignored `_vendor` directory. For active development,
+create `_vendor/airfoil_splines_core` as a directory junction or symlink to
+`../airfoil-splines-core/src/airfoil_splines_core` instead. The add-in adds
+`_vendor` to `sys.path` before importing its Fusion adapters.
 
 ## File Format Support
 

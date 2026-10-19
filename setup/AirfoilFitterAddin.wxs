@@ -16,6 +16,15 @@
         <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
         <MediaTemplate EmbedCab="yes" />
 
+        <!-- Detect only: never remove AS as part of an AF upgrade. -->
+        <Upgrade Id="9BFBAD03-1660-4623-B260-D14E575ED458">
+            <UpgradeVersion Minimum="0.0.0" IncludeMinimum="yes"
+                            OnlyDetect="yes" Property="AIRFOIL_SPLINES_MSI" />
+        </Upgrade>
+        <!-- Uninstall must remain possible if AS was installed afterwards. -->
+        <Launch Condition='REMOVE~="ALL" OR NOT (AIRFOIL_SPLINES_MSI)'
+                Message="Airfoil Splines is installed. Airfoil Fitter (AF) cannot coexist with it. Please uninstall Airfoil Splines through Windows Settings > Apps, then run this installer again. For a manual installation, remove Airfoil Splines from Fusion and its installation folder first." />
+
         <!-- Disable rollback to avoid Windows permission issues with \config.msi on non-C: drives -->
         <InstallExecuteSequence>
             <DisableRollback After="InstallInitialize" />

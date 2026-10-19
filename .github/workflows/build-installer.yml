@@ -19,6 +19,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          path: AirfoilFitterFusionAddin
+
+      - name: Checkout shared core
+        uses: actions/checkout@v4
+        with:
+          repository: mr33g/airfoil-splines-core
+          ref: main
+          persist-credentials: false
+          path: airfoil-splines-core
 
       - name: Extract Version from Tag
         shell: pwsh
@@ -57,9 +67,10 @@ jobs:
           python-version: '3.14'
 
       - name: Build MSI
-        working-directory: setup
+        working-directory: AirfoilFitterFusionAddin/setup
         shell: pwsh
         run: |
+          python prepare_core.py
           $staging = "$env:TEMP\addin-staging-$((Get-Random))"
           New-Item -ItemType Directory $staging | Out-Null
 
@@ -81,13 +92,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-msi
-          path: setup/AirfoilFitterAddin-*.msi
+          path: AirfoilFitterFusionAddin/setup/AirfoilFitterAddin-*.msi
 
       - name: Upload Windows Release Asset
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: setup/AirfoilFitterAddin-${{ env.VERSION_NO_BUILD }}.msi
+          files: AirfoilFitterFusionAddin/setup/AirfoilFitterAddin-${{ env.VERSION_NO_BUILD }}.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -97,6 +108,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          path: AirfoilFitterFusionAddin
+
+      - name: Checkout shared core
+        uses: actions/checkout@v4
+        with:
+          repository: mr33g/airfoil-splines-core
+          ref: main
+          persist-credentials: false
+          path: airfoil-splines-core
 
       - name: Extract Version from Tag
         shell: bash
@@ -115,9 +136,10 @@ jobs:
           python-version: '3.14'
 
       - name: Build macOS ZIP
-        working-directory: setup
+        working-directory: AirfoilFitterFusionAddin/setup
         shell: bash
         run: |
+          python prepare_core.py
           staging="$(mktemp -d)"
           python stage_for_build.py ".." "$staging"
 
@@ -148,12 +170,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-zip
-          path: setup/AirfoilFitterAddin-macos-*.zip
+          path: AirfoilFitterFusionAddin/setup/AirfoilFitterAddin-macos-*.zip
 
       - name: Upload macOS Release Asset
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: setup/AirfoilFitterAddin-macos-${{ env.VERSION_NO_BUILD }}.zip
+          files: AirfoilFitterFusionAddin/setup/AirfoilFitterAddin-macos-${{ env.VERSION_NO_BUILD }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

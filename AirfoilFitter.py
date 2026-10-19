@@ -12,10 +12,13 @@ update_manifest_url = 'https://raw.githubusercontent.com/mr33g/AirfoilFitterFusi
 app_store_url = 'https://apps.autodesk.com/FUSION/en/Detail/Index?id=7312110669169312529&appLang=en&os=Win64'
 _update_check_attempted = False
 
-# Add the add-in directory and bundled 'lib' to the path
+# Add the add-in directory, bundled core, and third-party libraries to the path
 if addin_dir not in sys.path:
     sys.path.insert(0, addin_dir)
 
+vendor_dir = os.path.join(addin_dir, '_vendor')
+if vendor_dir not in sys.path:
+    sys.path.insert(0, vendor_dir)
 lib_dir = os.path.join(addin_dir, 'lib')
 if lib_dir not in sys.path:
     sys.path.insert(0, lib_dir)

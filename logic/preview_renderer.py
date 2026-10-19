@@ -10,7 +10,7 @@ import os
 import numpy as np
 from scipy import interpolate
 from logic import state
-from utils import bspline_helper
+from airfoil_splines_core import bspline_helper
 from logic.fusion_graphics import draw_error_labels
 
 _addin_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

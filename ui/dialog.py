@@ -2,7 +2,7 @@ import adsk.core, adsk.fusion
 import traceback
 import os
 from logic import state
-from core import config
+import airfoil_fitter_settings as config
 from utils.i18n import t
 
 def create_ui_inputs(inputs):
@@ -59,7 +59,8 @@ def create_ui_inputs(inputs):
         reset_button.isVisible = False
 
         initial_cp_count = groupFitterSettingsChildInputs.addIntegerSpinnerCommandInput(
-            'initial_cp_count', t("initial_cp_count"), 5, 12, 1, config.DEFAULT_CP_COUNT
+            'initial_cp_count', t("initial_cp_count"), config.INITIAL_CP_MIN,
+            config.INITIAL_CP_MAX, 1, config.DEFAULT_CP_COUNT
         )
         initial_cp_count.isVisible = False
         
